@@ -9,6 +9,40 @@ from ultralytics import YOLO
 import importlib
 kirim_sison = importlib.import_module("3_kirim_ke_sison")
 
+# Import DB untuk history log
+from database_config import SessionLocal, Transaction, InspectionLog
+from sqlalchemy.sql import func
+
+def log_inspeksi_db(id_trans: str, part_no: str, status_deteksi: str):
+    """Fungsi helper yang berjalan di background thread untuk mencatat history ke DB"""
+    try:
+        with SessionLocal() as db:
+            # 1. Catat log inspeksi per item
+            log = InspectionLog(id_trans=id_trans, part_no=part_no, detection_status=status_deteksi, confidence_score=1.0)
+            db.add(log)
+            
+            # 2. Update qty actual di tabel transaksi
+            trans = db.query(Transaction).filter(Transaction.id_trans == id_trans).first()
+            if trans:
+                trans.qty_actual += 1
+                if trans.qty_actual >= trans.target_qty:
+                    trans.status = 2 # 2 = Selesai
+                    trans.end_time = func.now()
+            
+            db.commit()
+    except Exception as e:
+        print(f"Gagal mencatat log inspeksi ke DB: {e}")
+
+def log_ng_db(id_trans: str, part_no: str, image_path: str):
+    """Fungsi helper untuk mencatat history NG ke DB"""
+    try:
+        with SessionLocal() as db:
+            log = InspectionLog(id_trans=id_trans, part_no=part_no, detection_status="NG", image_path=image_path, confidence_score=1.0)
+            db.add(log)
+            db.commit()
+    except Exception as e:
+        print(f"Gagal mencatat log NG ke DB: {e}")
+
 # ==============================================================
 # STATE (Pusat Data Antar Thread)
 # ==============================================================
@@ -21,8 +55,11 @@ class SystemState:
         self.qty: int = 0
         self.target_qty: int = 0
         self.aturan_sisi: list = []
+        self.daftar_sisi: list = []
+        self.daftar_sisi: list = []
         self.progress_sisi: int = 0
         self.cooldown_until: float = 0.0
+        self.mock_detect_trigger: bool = False
 
 state = SystemState()
 
@@ -63,6 +100,7 @@ class KameraProses:
             target_qty = state.target_qty
             progress_sisi = state.progress_sisi
             aturan_sisi = state.aturan_sisi
+            daftar_sisi = state.daftar_sisi
             cooldown_until = state.cooldown_until
             id_trans = state.id_trans
             
@@ -84,6 +122,18 @@ class KameraProses:
                         x1, y1, x2, y2 = map(int, box.xyxy[0])
                         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
                         cv2.putText(frame, label_name, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                        
+            # CEK MOCK DETECT TRIGGER
+            with state.lock:
+                if getattr(state, 'mock_detect_trigger', False):
+                    # Inject label_counts sesuai aturan_sisi aktif
+                    if len(state.daftar_sisi) > 0 and state.progress_sisi < len(state.daftar_sisi):
+                        nama_sisi_aktif = state.daftar_sisi[state.progress_sisi]
+                        syarat_sisi_ini = [r for r in state.aturan_sisi if r.get("sisi") == nama_sisi_aktif]
+                        for req in syarat_sisi_ini:
+                            label_counts[req["nama_komponen"]] = req["qty"]
+                            print(f"[MOCK] Injeksi {req['nama_komponen']} sejumlah {req['qty']}")
+                    state.mock_detect_trigger = False
             
             # NG Detection
             if label_counts.get("ng", 0) > 0 and now >= cooldown_until:
@@ -91,38 +141,54 @@ class KameraProses:
                     state.status = "NG"
                 status = "NG"
             
-            # Logika Multi Sisi
-            elif len(aturan_sisi) > 0 and now >= cooldown_until:
-                if progress_sisi < len(aturan_sisi):
-                    sisi_aktif = aturan_sisi[progress_sisi]
-                    syarat = sisi_aktif.get("komponen_wajib", {})
-                    nama_sisi = sisi_aktif.get("nama_sisi", f"Sisi {progress_sisi + 1}")
+            # Logika Multi Sisi (Flat List Native)
+            elif len(daftar_sisi) > 0 and now >= cooldown_until:
+                if progress_sisi < len(daftar_sisi):
+                    nama_sisi_aktif = daftar_sisi[progress_sisi]
                     
-                    pesan_ui = f"Tunggu {nama_sisi}..."
+                    # Filter aturan flat berdasarkan sisi aktif
+                    syarat_sisi_ini = [r for r in aturan_sisi if r.get("sisi") == nama_sisi_aktif]
+                    
+                    # Bangun pesan UI spesifik
+                    info_kebutuhan = ", ".join([f"{r['nama_komponen']}({r['qty']})" for r in syarat_sisi_ini])
+                    pesan_ui = f"Cek {nama_sisi_aktif}: Butuh {info_kebutuhan}"
                     color_status = (0, 255, 255)
                     
+                    # Validasi
                     sisi_valid = True
-                    for label, wajib_qty in syarat.items():
-                        if label_counts.get(label, 0) < wajib_qty:
+                    for req in syarat_sisi_ini:
+                        if label_counts.get(req["nama_komponen"], 0) < req["qty"]:
                             sisi_valid = False
                             break
                             
-                    if sisi_valid and len(syarat) > 0:
+                    if sisi_valid and len(syarat_sisi_ini) > 0:
                         with state.lock:
                             state.progress_sisi += 1
-                            if state.progress_sisi >= len(state.aturan_sisi):
+                            if state.progress_sisi >= len(state.daftar_sisi):
                                 state.qty -= 1
                                 state.progress_sisi = 0
-                                state.cooldown_until = now + 2.0
-                                pesan_ui = "Part LENGKAP! Ganti part."
-                                color_status = (0, 255, 0)
+                                
+                                # --- Panggil pencatatan database di background ---
+                                threading.Thread(target=log_inspeksi_db, args=(state.id_trans, state.p_no, "OK")).start()
+                                
+                                if state.qty <= 0:
+                                    # Panggil Sison API di thread terpisah (agar tidak memblokir kamera)
+                                    threading.Thread(target=kirim_sison.SisonSender.send_callback, args=(state.id_trans, 1)).start()
+                                    state.status = "STANDBY"
+                                    state.cooldown_until = now + 5.0
+                                    pesan_ui = "INSPEKSI SELESAI! (Dikirim ke Sison)"
+                                    color_status = (0, 255, 0)
+                                else:
+                                    state.cooldown_until = now + 2.0
+                                    pesan_ui = "Part LENGKAP! Ganti part."
+                                    color_status = (0, 255, 0)
                             else:
                                 state.cooldown_until = now + 2.0
-                                pesan_ui = f"{nama_sisi} OK! Putar part."
+                                pesan_ui = f"{nama_sisi_aktif} OK! Putar part."
                                 color_status = (0, 255, 0)
 
         elif status == "NG":
-            pesan_ui = "STATUS: NG! INPUT PIN (1234) UNTUK OVERRIDE."
+            pesan_ui = "STATUS: NG! INPUT PIN (1234) UNTUK VALIDASI."
             color_status = (0, 0, 255)
             overlay = frame.copy()
             cv2.rectangle(overlay, (0,0), (frame.shape[1], frame.shape[0]), (0,0,255), -1)

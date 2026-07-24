@@ -7,8 +7,11 @@ class SisonSender:
             # URL callback ini sesuaikan dengan konfigurasi Sison Anda
             url = "http://localhost:3000/api/kamera/callback"
             payload = {"id_trans": id_trans, "status": status}
-            # Sengaja dikomen sementara saat dev agar tidak error connection refused
-            # requests.post(url, json=payload, timeout=2) 
-            print(f"Berhasil mengirim CALLBACK ke Sison: {payload}")
+            # Mengaktifkan panggilan nyata ke API Sison
+            # Timeout diset sangat kecil agar kamera tidak freeze jika Sison offline
+            res = requests.post(url, json=payload, timeout=1.0)
+            print(f"Berhasil mengirim CALLBACK ke Sison. Status: {res.status_code} | Payload: {payload}")
+        except requests.exceptions.RequestException as e:
+            print(f"Gagal kirim callback ke Sison (Sison Offline/Error): {e}")
         except Exception as e:
-            print(f"Gagal kirim callback ke Sison: {e}")
+            print(f"Error tidak terduga saat callback: {e}")

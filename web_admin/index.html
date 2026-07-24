@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Kamera - Admin Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .nav-tabs {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .nav-tabs button {
+            padding: 12px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .nav-tabs button.active {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+            box-shadow: 0 0 15px rgba(255, 65, 108, 0.4);
+        }
+        .nav-tabs button:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-running { background: #ffc107; color: black; }
+        .status-selesai { background: #28a745; color: white; }
+        .component-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.1);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--glass-border);
+        }
+
+        .component-row input,
+        .component-row select {
+            margin-bottom: 0;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .component-row select option {
+            background: #2a2a35;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="glass-container">
+        <header style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1>Admin <span>Dashboard</span></h1>
+                <p>Command Center Inspeksi Otomotif</p>
+            </div>
+            <button class="btn-danger" onclick="keluarAdmin()"
+                style="padding: 10px 20px; font-weight: bold;">Keluar</button>
+        </header>
+
+        <div class="nav-tabs">
+            <button id="tab-dashboard" class="active" onclick="switchTab('dashboard')">Live Dashboard</button>
+            <button id="tab-rules" onclick="switchTab('rules')">Setting Rules</button>
+        </div>
+
+        <main>
+            <!-- TAB 1: DASHBOARD MONITORING -->
+            <section id="view-dashboard" class="tab-content active card">
+                <div class="card-header">
+                    <h2>Live Transactions</h2>
+                    <p style="color: rgba(255,255,255,0.6); font-size: 14px;">Auto-refresh setiap 3 detik...</p>
+                </div>
+                <div class="table-wrapper">
+                    <table id="transactions-table">
+                        <thead>
+                            <tr>
+                                <th>ID Trans</th>
+                                <th>Part No</th>
+                                <th>Nama Part</th>
+                                <th>Target</th>
+                                <th>Selesai</th>
+                                <th>Status</th>
+                                <th>Waktu Mulai</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactions-body">
+                            <!-- Data Transaksi diisi dari JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- TAB 2: RULES MANAGER -->
+            <section id="view-rules" class="tab-content card">
+                <div class="card-header">
+                    <h2>Part Rules</h2>
+                    <button id="btn-add-rule" class="btn-primary">+ Tambah Rule</button>
+                </div>
+                <div class="table-wrapper">
+                    <table id="rules-table">
+                        <thead>
+                            <tr>
+                                <th>Part No</th>
+                                <th>Komponen (Sisi / Nama / Qty)</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rules-body">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal Form -->
+    <div id="rule-modal" class="modal hidden">
+        <div class="modal-content glass-card" style="max-width: 700px;">
+            <h3 id="modal-title">Tambah / Edit Rule</h3>
+            <form id="rule-form">
+                <div class="form-group">
+                    <label>Part Number</label>
+                    <input type="text" id="input-pno" required>
+                </div>
+                <!-- Tipe Cek dihapus -->
+
+                <div class="form-group" style="margin-top: 2rem;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <label style="margin: 0;">Daftar Komponen</label>
+                        <button type="button" id="btn-add-comp" class="btn-secondary"
+                            style="padding: 4px 8px; font-size: 0.8rem;">+ Tambah Komponen</button>
+                    </div>
+                    <div id="components-container">
+                        <!-- Komponen form akan muncul di sini -->
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" id="btn-cancel" class="btn-secondary">Batal</button>
+                    <button type="submit" class="btn-primary">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
