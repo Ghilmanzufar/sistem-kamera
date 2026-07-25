@@ -1,0 +1,257 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Konfigurasi Sison - Admin Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        @media (max-width: 900px) { .config-grid { grid-template-columns: 1fr; } }
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; color: rgba(255,255,255,0.7); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .form-group input { width: 100%; padding: 12px 16px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: white; font-size: 14px; font-family: 'Inter', sans-serif; box-sizing: border-box; transition: border-color 0.2s; }
+        .form-group input:focus { outline: none; border-color: rgba(99,102,241,0.8); }
+        .api-key-wrapper { position: relative; }
+        .api-key-wrapper input { padding-right: 110px; font-family: 'Courier New', monospace; }
+        .btn-show { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.1); border: none; color: rgba(255,255,255,0.7); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+        .btn-show:hover { background: rgba(255,255,255,0.2); }
+        .endpoint-block { background: rgba(0,0,0,0.3); border-radius: 10px; padding: 20px; margin-bottom: 16px; border: 1px solid rgba(255,255,255,0.08); }
+        .endpoint-block h4 { margin: 0 0 12px; font-size: 15px; }
+        .method-badge { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; margin-right: 8px; }
+        .method-post { background: #22c55e22; color: #22c55e; border: 1px solid #22c55e44; }
+        .endpoint-url { font-family: 'Courier New', monospace; font-size: 13px; color: #e2e8f0; }
+        .code-block { background: rgba(0,0,0,0.5); border-radius: 8px; padding: 14px; font-family: 'Courier New', monospace; font-size: 12px; color: #86efac; white-space: pre; overflow-x: auto; margin-top: 10px; }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .status-200 { background: #22c55e22; color: #22c55e; }
+        .status-401 { background: #ef444422; color: #f87171; }
+        .copy-btn { background: rgba(99,102,241,0.2); border: 1px solid rgba(99,102,241,0.4); color: #a5b4fc; padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 11px; }
+        .copy-btn:hover { background: rgba(99,102,241,0.4); }
+        .alert-info { background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3); border-radius: 8px; padding: 12px 16px; color: #93c5fd; font-size: 13px; margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+    <div class="glass-container">
+        <header style="display: flex; justify-content: space-between; align-items: center;">
+            <div><h1>Admin <span>Dashboard</span></h1></div>
+            <button class="btn-danger" onclick="keluarAdmin()" style="padding: 10px 20px; font-weight: bold;">Keluar</button>
+        </header>
+
+        <div class="nav-tabs">
+            <a href="index.html">Live Dashboard</a>
+            <a href="history_inspeksi.html">History Inspeksi</a>
+            <a href="rules.html">Setting Rules</a>
+            <a href="models.html">Model AI (.pt)</a>
+            <a href="ng_history.html">History NG</a>
+            <a href="users.html">Manajemen User</a>
+            <a href="camera.html">Manajemen Kamera</a>
+            <a href="sison_config.html" class="active">Konfigurasi Sison</a>
+        </div>
+
+        <main>
+            <div class="config-grid">
+                <!-- Kiri: Form Konfigurasi -->
+                <div>
+                    <section class="card">
+                        <div class="card-header">
+                            <h2>Konfigurasi Koneksi Sison</h2>
+                            <p style="color: rgba(255,255,255,0.6); font-size: 13px;">Atur URL callback dan API Key untuk komunikasi dengan sistem Sison.</p>
+                        </div>
+                        <div class="alert-info">
+                            API Key ini harus diberikan ke tim IT Sison agar mereka bisa memanggil endpoint kamera.
+                        </div>
+                        <div class="form-group">
+                            <label>URL Callback ke Sison</label>
+                            <input type="text" id="callback-url" placeholder="http://[IP_SISON]:3000/api/kamera/callback">
+                        </div>
+                        <div class="form-group">
+                            <label>API Key (X-Api-Key)</label>
+                            <div class="api-key-wrapper">
+                                <input type="password" id="api-key" placeholder="kamera-secret-key">
+                                <button class="btn-show" onclick="toggleApiKey()">Tampilkan</button>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn-primary" onclick="saveConfig()" style="flex: 1;">Simpan Konfigurasi</button>
+                            <button class="btn-secondary" onclick="testCallback()" style="flex: 1;">Test Callback</button>
+                        </div>
+                        <div id="save-status" style="margin-top: 12px; font-size: 13px; min-height: 20px;"></div>
+                    </section>
+                </div>
+
+                <!-- Kanan: Dokumentasi Endpoint -->
+                <div>
+                    <section class="card">
+                        <div class="card-header">
+                            <h2>Dokumentasi Endpoint</h2>
+                            <p style="color: rgba(255,255,255,0.6); font-size: 13px;">Bagikan informasi ini ke tim IT Sison.</p>
+                        </div>
+
+                        <div class="endpoint-block">
+                            <h4>
+                                <span class="method-badge method-post">POST</span>
+                                <span class="endpoint-url">/api/start</span>
+                            </h4>
+                            <p style="color: rgba(255,255,255,0.6); font-size: 13px; margin: 0 0 10px;">Kirim data transaksi untuk memulai inspeksi kamera.</p>
+                            <strong style="font-size: 12px; color: rgba(255,255,255,0.5);">HEADER WAJIB:</strong>
+                            <div class="code-block">X-Api-Key: <span id="api-key-display" style="color: #fbbf24;">[lihat konfigurasi]</span></div>
+                            <strong style="font-size: 12px; color: rgba(255,255,255,0.5);">REQUEST BODY (JSON):</strong>
+                            <div class="code-block">{
+  "id_trans": "TRANS-001",
+  "lot": "LOT-2024-001",
+  "p_no": "74231-0K550-00",
+  "unique_no": "UNQ-1234",
+  "p_name": "Nama Part",
+  "qty": 10
+}</div>
+                            <strong style="font-size: 12px; color: rgba(255,255,255,0.5);">RESPONSE:</strong>
+                            <div style="margin-top: 6px;">
+                                <span class="status-badge status-200">200 OK</span>
+                                <div class="code-block" style="margin-top: 6px;">{"success": true, "message": "Kamera menerima perintah mulai"}</div>
+                                <span class="status-badge status-401" style="margin-top: 6px; display:inline-block;">401 Unauthorized</span>
+                                <div class="code-block" style="margin-top: 6px;">{"detail": "API Key tidak valid"}</div>
+                            </div>
+                        </div>
+
+                        <div class="endpoint-block" style="border-color: rgba(251,191,36,0.2);">
+                            <h4>
+                                <span class="method-badge" style="background:#f59e0b22;color:#fbbf24;border:1px solid #f59e0b44;">POST</span>
+                                <span class="endpoint-url" style="color:#fbbf24;">Callback Kamera ke Sison</span>
+                            </h4>
+                            <p style="color: rgba(255,255,255,0.6); font-size: 13px; margin: 0 0 10px;">Setelah inspeksi selesai, kamera POST ke URL Sison yang dikonfigurasi.</p>
+                            <strong style="font-size: 12px; color: rgba(255,255,255,0.5);">PAYLOAD YANG DIKIRIM KAMERA:</strong>
+                            <div class="code-block">{
+  "id_trans": "TRANS-001",
+  "status": 1
+}
+// status: 0=GAGAL | 1=SUKSES | 2=PROSES</div>
+                        </div>
+
+                        <button class="copy-btn" onclick="copyDocs()">Salin Dokumentasi Lengkap</button>
+                    </section>
+                </div>
+            </div>
+
+            <!-- Test Panel -->
+            <section class="card" style="margin-top: 0;">
+                <div class="card-header">
+                    <h2>Test Endpoint /api/start</h2>
+                    <p style="color: rgba(255,255,255,0.6); font-size: 13px;">Simulasi request dari Sison langsung dari browser.</p>
+                </div>
+                <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+                    <div class="form-group" style="flex: 1; min-width: 140px; margin: 0;">
+                        <label>ID Trans</label>
+                        <input type="text" id="test-id-trans" value="TEST-001">
+                    </div>
+                    <div class="form-group" style="flex: 1; min-width: 140px; margin: 0;">
+                        <label>Part No</label>
+                        <input type="text" id="test-p-no" value="74231-0K550-00">
+                    </div>
+                    <div class="form-group" style="flex: 1; min-width: 80px; margin: 0;">
+                        <label>Qty</label>
+                        <input type="number" id="test-qty" value="1">
+                    </div>
+                    <button class="btn-primary" onclick="testEndpoint()" style="height: 44px; padding: 0 20px; white-space: nowrap;">Kirim Test</button>
+                </div>
+                <div id="test-result" style="margin-top: 12px; font-size: 13px; min-height: 20px;"></div>
+            </section>
+        </main>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        let currentApiKey = '';
+
+        async function loadConfig() {
+            try {
+                const res = await fetch('/api/admin/sison-config');
+                const data = await res.json();
+                document.getElementById('callback-url').value = data.callback_url || '';
+                document.getElementById('api-key').value = data.api_key || '';
+                currentApiKey = data.api_key || '';
+                document.getElementById('api-key-display').textContent = data.api_key || '[belum diset]';
+            } catch (e) { console.error('Gagal load config:', e); }
+        }
+
+        async function saveConfig() {
+            const status = document.getElementById('save-status');
+            const callbackUrl = document.getElementById('callback-url').value.trim();
+            const apiKey = document.getElementById('api-key').value.trim();
+            if (!callbackUrl || !apiKey) {
+                status.innerHTML = '<span style="color:#f87171;">URL Callback dan API Key tidak boleh kosong.</span>';
+                return;
+            }
+            try {
+                const res = await fetch('/api/admin/sison-config', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ callback_url: callbackUrl, api_key: apiKey })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    currentApiKey = apiKey;
+                    document.getElementById('api-key-display').textContent = apiKey;
+                    status.innerHTML = '<span style="color:#22c55e;">Konfigurasi berhasil disimpan!</span>';
+                } else {
+                    status.innerHTML = '<span style="color:#f87171;">Gagal menyimpan.</span>';
+                }
+            } catch (e) {
+                status.innerHTML = '<span style="color:#f87171;">Error jaringan: ' + e + '</span>';
+            }
+        }
+
+        async function testCallback() {
+            const callbackUrl = document.getElementById('callback-url').value.trim();
+            const status = document.getElementById('save-status');
+            status.innerHTML = '<span style="color:#94a3b8;">Mengirim test callback...</span>';
+            try {
+                const res = await fetch(callbackUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id_trans: 'TEST-PING', status: 2 })
+                });
+                status.innerHTML = '<span style="color:#22c55e;">Callback berhasil dikirim (HTTP ' + res.status + ')</span>';
+            } catch (e) {
+                status.innerHTML = '<span style="color:#f87171;">Sison tidak bisa dihubungi: ' + e.message + '</span>';
+            }
+        }
+
+        async function testEndpoint() {
+            const result = document.getElementById('test-result');
+            const idTrans = document.getElementById('test-id-trans').value;
+            const pNo = document.getElementById('test-p-no').value;
+            const qty = parseInt(document.getElementById('test-qty').value);
+            const apiKey = document.getElementById('api-key').value;
+            result.innerHTML = '<span style="color:#94a3b8;">Mengirim request...</span>';
+            try {
+                const res = await fetch('/api/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey },
+                    body: JSON.stringify({ id_trans: idTrans, lot: 'TEST-LOT', p_no: pNo, unique_no: 'TEST-UNQ', p_name: 'Test Part', qty })
+                });
+                const data = await res.json();
+                const color = res.ok ? '#22c55e' : '#f87171';
+                const icon = res.ok ? 'OK' : 'GAGAL';
+                result.innerHTML = '<span style="color:' + color + ';">HTTP ' + res.status + ' [' + icon + '] → ' + JSON.stringify(data) + '</span>';
+            } catch (e) {
+                result.innerHTML = '<span style="color:#f87171;">Error: ' + e + '</span>';
+            }
+        }
+
+        function toggleApiKey() {
+            const input = document.getElementById('api-key');
+            const btn = document.querySelector('.btn-show');
+            if (input.type === 'password') { input.type = 'text'; btn.textContent = 'Sembunyikan'; }
+            else { input.type = 'password'; btn.textContent = 'Tampilkan'; }
+        }
+
+        function copyDocs() {
+            const docs = '=== DOKUMENTASI ENDPOINT SISTEM KAMERA ===\n\nBASE URL: http://[IP_KAMERA]:8000\n\n--- 1. START INSPEKSI ---\nMethod : POST\nURL    : /api/start\nHeader : X-Api-Key: ' + currentApiKey + '\nBody   : {\n  "id_trans": "...",\n  "lot": "...",\n  "p_no": "...",\n  "unique_no": "...",\n  "p_name": "...",\n  "qty": 1\n}\nResponse OK  : {"success": true, "message": "Kamera menerima perintah mulai"}\nResponse 401 : {"detail": "API Key tidak valid"}\n\n--- 2. CALLBACK DARI KAMERA KE SISON ---\nKamera akan POST ke URL Sison yang dikonfigurasi:\n{\n  "id_trans": "...",\n  "status": 1\n}\nKeterangan status: 0=GAGAL, 1=SUKSES, 2=PROSES';
+            navigator.clipboard.writeText(docs).then(() => alert('Dokumentasi disalin ke clipboard!'));
+        }
+
+        loadConfig();
+    </script>
+</body>
+</html>

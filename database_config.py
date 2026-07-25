@@ -66,6 +66,13 @@ class InspectionLog(Base):
     confidence_score = Column(Float)
     created_at = Column(DateTime, server_default=func.now())
 
+class CameraConfig(Base):
+    __tablename__ = "camera_configs"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name = Column(String)
+    source = Column(String) # '0', '1', or RTSP url
+    is_active = Column(Boolean, default=False)
+
 class PartRule(Base):
     __tablename__ = "part_rules"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
@@ -73,6 +80,12 @@ class PartRule(Base):
     sisi = Column(String, nullable=False) # e.g., 'Depan', 'Belakang'
     nama_komponen = Column(String, nullable=False)
     qty = Column(Integer, nullable=False)
+
+class SisonConfig(Base):
+    __tablename__ = "sison_config"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    callback_url = Column(String, default="http://localhost:3000/api/kamera/callback")
+    api_key = Column(String, default="kamera-secret-key")  # ponytail: upgrade ke random UUID jika perlu
 
 # Buat semua tabel jika belum ada
 Base.metadata.create_all(bind=engine)

@@ -1,0 +1,85 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Kamera - Admin Dashboard (Rules)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="glass-container">
+        <header style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1>Admin <span>Dashboard</span></h1>
+            </div>
+            <button class="btn-danger" onclick="keluarAdmin()"
+                style="padding: 10px 20px; font-weight: bold;">Keluar</button>
+        </header>
+
+        <div class="nav-tabs">
+            <a href="index.html">Live Dashboard</a>
+            <a href="history_inspeksi.html">History Inspeksi</a>
+            <a href="rules.html" class="active">Setting Rules</a>
+            <a href="models.html">Model AI (.pt)</a>
+            <a href="ng_history.html">History NG</a>
+            <a href="users.html">Manajemen User</a>
+            <a href="camera.html">Manajemen Kamera</a>
+            <a href="sison_config.html">Konfigurasi Sison</a>
+        </div>
+
+        <main>
+            <section class="card">
+                <div class="card-header">
+                    <h2>Part Rules</h2>
+                    <button id="btn-add-rule" class="btn-primary">+ Tambah Rule</button>
+                </div>
+                <div class="table-wrapper">
+                    <table id="rules-table">
+                        <thead>
+                            <tr>
+                                <th>Part No</th>
+                                <th>Komponen (Sisi / Nama / Qty)</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rules-body">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal Form -->
+    <div id="rule-modal" class="modal hidden">
+        <div class="modal-content glass-card" style="max-width: 700px;">
+            <h3 id="modal-title">Tambah / Edit Rule</h3>
+            <form id="rule-form">
+                <div class="form-group">
+                    <label>Part Number</label>
+                    <input type="text" id="input-pno" required>
+                </div>
+                <div class="form-group" style="margin-top: 2rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <label style="margin: 0;">Daftar Komponen</label>
+                        <button type="button" id="btn-add-comp" class="btn-secondary"
+                            style="padding: 4px 8px; font-size: 0.8rem;">+ Tambah Komponen</button>
+                    </div>
+                    <div id="components-container">
+                        <!-- Komponen form akan muncul di sini -->
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" id="btn-cancel" class="btn-secondary">Batal</button>
+                    <button type="submit" class="btn-primary">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script src="js/auth.js"></script>
+    <script src="js/rules.js"></script>
+</body>
+</html>

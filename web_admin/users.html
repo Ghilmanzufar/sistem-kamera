@@ -1,0 +1,148 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Kamera - Admin Dashboard (Manajemen User)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.show { display: flex; }
+        .modal-content {
+            background: var(--bg-gradient);
+            border: 1px solid var(--glass-border);
+            padding: 2rem;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-muted);
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.8rem;
+            border-radius: 8px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="glass-container">
+        <header style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1>Admin <span>Dashboard</span></h1>
+            </div>
+            <button class="btn-danger" onclick="keluarAdmin()"
+                style="padding: 10px 20px; font-weight: bold;">Keluar</button>
+        </header>
+
+        <div class="nav-tabs">
+            <a href="index.html">Live Dashboard</a>
+            <a href="history_inspeksi.html">History Inspeksi</a>
+            <a href="rules.html">Setting Rules</a>
+            <a href="models.html">Model AI (.pt)</a>
+            <a href="ng_history.html">History NG</a>
+            <a href="users.html" class="active">Manajemen User</a>
+            <a href="camera.html">Manajemen Kamera</a>
+            <a href="sison_config.html">Konfigurasi Sison</a>
+        </div>
+
+        <main>
+            <section class="card">
+                <div class="card-header">
+                    <h2>Daftar User & Akses</h2>
+                    <button id="btn-add-user" class="btn-primary">+ Tambah User</button>
+                </div>
+                <div class="table-wrapper">
+                    <table id="users-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>Nama Lengkap</th>
+                                <th>Role</th>
+                                <th>PIN (Password)</th>
+                                <th>Status</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-body">
+                            <!-- Diisi oleh JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal Add/Edit User -->
+    <div id="user-modal" class="modal">
+        <div class="modal-content">
+            <h2 id="modal-title">Tambah User</h2>
+            <form id="user-form">
+                <input type="hidden" id="user-id">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="username" required>
+                </div>
+                <div class="form-group">
+                    <label>Nama Lengkap</label>
+                    <input type="text" id="fullname" required>
+                </div>
+                <div class="form-group">
+                    <label>Role</label>
+                    <select id="role" required>
+                        <option value="pengawas">Pengawas (Bisa Reset Sirene NG)</option>
+                        <option value="admin">Admin (Akses Penuh + Dashboard)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label id="lbl-password">PIN / Password</label>
+                    <input type="text" id="password" required>
+                </div>
+                <div class="form-group">
+                    <label>Status Aktif</label>
+                    <select id="is-active">
+                        <option value="true">Aktif</option>
+                        <option value="false">Nonaktif</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" id="btn-cancel">Batal</button>
+                    <button type="submit" class="btn-primary">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script src="js/users.js"></script>
+</body>
+</html>
