@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function loadCameras() {
-    fetch('/api/cameras')
+    fetch('/api/admin/cameras')
         .then(res => res.json())
         .then(data => {
             const tbody = document.getElementById('camera-table-body');
@@ -52,7 +52,7 @@ function saveNewCamera() {
         return;
     }
     
-    fetch('/api/cameras', {
+    fetch('/api/admin/cameras', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, source })
@@ -67,7 +67,7 @@ function saveNewCamera() {
 
 function activateCamera(id) {
     if(confirm("Jadikan kamera ini sebagai sumber utama? Anda harus merestart aplikasi Python (BASIC_APP.py) setelah ini agar efeknya terlihat.")) {
-        fetch(`/api/cameras/${id}/activate`, { method: 'PUT' })
+        fetch(`/api/admin/cameras/${id}/activate`, { method: 'PUT' })
             .then(res => res.json())
             .then(() => loadCameras())
             .catch(err => alert("Gagal mengaktifkan kamera"));
@@ -76,7 +76,7 @@ function activateCamera(id) {
 
 function deleteCamera(id) {
     if(confirm("Hapus profil kamera ini?")) {
-        fetch(`/api/cameras/${id}`, { method: 'DELETE' })
+        fetch(`/api/admin/cameras/${id}`, { method: 'DELETE' })
             .then(res => res.json())
             .then(() => loadCameras())
             .catch(err => alert("Gagal menghapus kamera"));

@@ -7,7 +7,14 @@ import logging
 import warnings
 import webbrowser
 
+# 👱 Ponytail: Bungkam log MSMF/OpenCV via environment variable agar terminal tenang tanpa merusak decoding video
+os.environ["OPENCV_LOG_LEVEL"] = "FATAL"
+os.environ["OPENCV_VIDEOIO_DEBUG"] = "0"
+os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
 import cv2
+if hasattr(cv2, 'setLogLevel'):
+    cv2.setLogLevel(0)
+
 import uvicorn
 import requests
 from fastapi import FastAPI
@@ -213,14 +220,9 @@ class YoloApp(QWidget):
             print(f"[WARNING] Gagal membaca DB, fallback ke index 0. Error: {e}")
             cam_source = 0
 
-        self.cap = cv2.VideoCapture(cam_source)
-            
-        # 👱 Ponytail: Resolusi dibiarkan default. Memaksa resolusi (cap.set) di berbagai model komputer/kamera 
-        # bisa memicu hang driver (seperti sebelumnya). QPixmap sudah mengurus auto-scaling di UI.
-        # UPDATE: Diaktifkan kembali karena user butuh gambar yang lebar (HD). Jika hang lagi, berarti
-        # kamera tidak native support 720p di backend ini.
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        # 👱 Ponytail: Gunakan backend default (MSMF) karena DirectShow (CAP_DSHOW) bisa menghasilkan noise garis warna vertikal (gagal decode format/YUYV)
+        self.cam_source = cam_source
+        self._open_camera()
         
         self.model = None # Lazy load model nanti saat Start Sison
         self.current_loaded_p_no = "" # Untuk mendeteksi perubahan part number dari Sison
@@ -228,6 +230,14 @@ class YoloApp(QWidget):
 
         # UI & Timers
         self.initUI()
+
+    def _open_camera(self):
+        # 👱 Ponytail: Default OpenCV adalah 640x480 (VGA 4:3) yang terlihat kecil/kotak di layar monitor. 
+        # Naikkan ke 1280x720 (16:9 HD) agar gambar penuh, tajam untuk inspeksi, tanpa membebani FPS.
+        self.cap = cv2.VideoCapture(self.cam_source)
+        if self.cap.isOpened():
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_frame)
         self.timer.start(30) # Refresh 30 FPS
@@ -417,8 +427,18 @@ class YoloApp(QWidget):
             self.current_loaded_p_no = p_no
 
         # 3. Baca Kamera
-        ret, frame = self.cap.read()
-        if not ret: return
+        ret, frame = self.cap.read() if self.cap.isOpened() else (False, None)
+        if not ret:
+            self.video_label.setText("<span style='color:#ef4444; font-size:24px; font-weight:bold;'>⚠️ KAMERA GAGAL DIAKSES / TIDAK TERDETEKSI<br/>Cek sambungan port USB atau settingan sumber kamera di Admin Dashboard.</span>")
+            # 👱 Ponytail: Rem putaran timer jadi 2000ms (2 detik) agar terminal tidak kebanjiran error log OpenCV, lalu coba open ulang
+            self.timer.setInterval(2000)
+            self.cap.release()
+            self._open_camera()
+            return
+
+        # 👱 Ponytail: Kamera sehat, pastikan kecepatan timer normal kembali ke 30ms (33 FPS)
+        if self.timer.interval() != 30:
+            self.timer.setInterval(30)
         
         # 4. Proses Logika & Render Deteksi
         frame, pesan_ui = KameraProses.proses_frame(frame, self.model)
