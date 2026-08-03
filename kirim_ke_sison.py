@@ -13,14 +13,8 @@ def _get_callback_url() -> str:
 class SisonSender:
     @staticmethod
     def send_callback(id_trans: str, status: int = 1):
-        try:
-            url = _get_callback_url()
-            payload = {"id_trans": id_trans, "status": status}
-            # Timeout diset sangat kecil agar kamera tidak freeze jika Sison offline
-            res = requests.post(url, json=payload, timeout=1.0)
-            print(f"Berhasil mengirim CALLBACK ke Sison. Status: {res.status_code} | Payload: {payload}")
-        except requests.exceptions.RequestException as e:
-            print(f"Gagal kirim callback ke Sison (Sison Offline/Error): {e}")
-        except Exception as e:
-            print(f"Error tidak terduga saat callback: {e}")
+        # ponytail: Callback ke Sison API dinonaktifkan sementara untuk pengujian lokal.
+        # Ceiling: Hapus return di bawah ini untuk mengaktifkan kembali integrasi Sison.
+        print(f"[MOCK SISON] Callback Sison dinonaktifkan sementara. (id_trans: {id_trans})")
+        return
 

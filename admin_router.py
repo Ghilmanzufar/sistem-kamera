@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from database_config import get_db, PartRule, User, InspectionLog, Transaction, CameraConfig, SisonConfig
+from database_config import get_db, PartRule, User, InspectionLog, Transaction, CameraConfig, SisonConfig, GlobalSettings
 from collections import defaultdict
 import os
 import shutil
+import tempfile
 from typing import Optional
 from datetime import datetime
 
@@ -12,13 +13,21 @@ router = APIRouter()
 
 # --- SCHEMAS ---
 class ComponentSchema(BaseModel):
-    sisi: str
+    sisi: Optional[str] = "-"
     nama_komponen: str
-    qty: int
+    qty: Optional[int] = 1
+    min_confidence: Optional[float] = 0.70
 
 class PartRuleSchema(BaseModel):
     p_no: str
+    avg_confidence: Optional[float] = 0.75
+    min_coverage: Optional[float] = 1.0
     komponen: list[ComponentSchema]
+
+class GlobalRuleSchema(BaseModel):
+    default_avg_conf: float
+    default_min_conf: float
+    default_min_coverage: float
 
 class RenameModelSchema(BaseModel):
     new_part_no: str
@@ -69,15 +78,11 @@ def get_ng_logs(date_filter: Optional[str] = None, db: Session = Depends(get_db)
     
     if date_filter:
         try:
-            # Parse date_filter (YYYY-MM-DD)
-            filter_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
-            # SQLite DateTime can be filtered by casting to date using func.date()
-            # Tapi SQLAlchemy func.date() kadang rewel di SQLite, cara paling aman:
             start_date = datetime(filter_date.year, filter_date.month, filter_date.day, 0, 0, 0)
             end_date = datetime(filter_date.year, filter_date.month, filter_date.day, 23, 59, 59)
             query = query.filter(InspectionLog.created_at >= start_date, InspectionLog.created_at <= end_date)
         except ValueError:
-            pass # abaikan jika format salah
+            pass
             
     logs = query.order_by(InspectionLog.created_at.desc()).limit(100).all()
     return logs
@@ -89,17 +94,37 @@ def get_all_rules(db: Session = Depends(get_db)):
     
     # Group by p_no
     grouped = defaultdict(list)
+    avg_conf_map = {}
     for r in rules_raw:
+        min_c = getattr(r, 'min_confidence', 0.70)
+        if min_c is None: min_c = 0.70
+        avg_c = getattr(r, 'avg_confidence', 0.75)
+        if avg_c is None: avg_c = 0.75
+        min_cov = getattr(r, 'min_coverage', 1.0)
+        if min_cov is None: min_cov = 1.0
+
         grouped[r.p_no].append({
-            "sisi": r.sisi,
+            "sisi": r.sisi or "-",
             "nama_komponen": r.nama_komponen,
-            "qty": r.qty
+            "qty": r.qty or 1,
+            "min_confidence": min_c
         })
+        avg_conf_map[r.p_no] = avg_c
         
     result = []
     for p_no, comps in grouped.items():
+        # Get min_coverage from the first component of this p_no (they are all the same)
+        # Re-fetch or just extract from first row
+        min_cov = 1.0
+        if rules_raw:
+            first_rule = next((x for x in rules_raw if x.p_no == p_no), None)
+            if first_rule and getattr(first_rule, 'min_coverage', None) is not None:
+                min_cov = first_rule.min_coverage
+
         result.append({
             "p_no": p_no,
+            "avg_confidence": avg_conf_map.get(p_no, 0.75),
+            "min_coverage": min_cov,
             "komponen": comps
         })
     return result
@@ -111,13 +136,20 @@ def save_rule(rule_data: PartRuleSchema, db: Session = Depends(get_db)):
         db.query(PartRule).filter(PartRule.p_no == rule_data.p_no).delete()
         db.flush()
 
+        avg_c = rule_data.avg_confidence if rule_data.avg_confidence is not None else 0.75
+        min_cov = rule_data.min_coverage if rule_data.min_coverage is not None else 1.0
+
         # Bulk insert komponen baru
         for c in rule_data.komponen:
+            min_c = c.min_confidence if c.min_confidence is not None else 0.70
             new_comp = PartRule(
                 p_no=rule_data.p_no,
-                sisi=c.sisi,
+                sisi=c.sisi or "-",
                 nama_komponen=c.nama_komponen,
-                qty=c.qty
+                qty=c.qty or 1,
+                min_confidence=min_c,
+                avg_confidence=avg_c,
+                min_coverage=min_cov
             )
             db.add(new_comp)
 
@@ -134,6 +166,42 @@ def delete_rule(p_no: str, db: Session = Depends(get_db)):
         db.commit()
         return {"success": True, "message": "Rule deleted"}
     raise HTTPException(status_code=404, detail="Rule not found")
+
+# --- GLOBAL RULES API ---
+def _get_or_create_global_settings(db: Session) -> GlobalSettings:
+    gs = db.query(GlobalSettings).first()
+    if not gs:
+        gs = GlobalSettings()
+        db.add(gs)
+        db.commit()
+        db.refresh(gs)
+    return gs
+
+@router.get("/global-rule")
+def get_global_rule(db: Session = Depends(get_db)):
+    gs = _get_or_create_global_settings(db)
+    return {
+        "default_avg_conf": gs.default_avg_conf,
+        "default_min_conf": gs.default_min_conf,
+        "default_min_coverage": gs.default_min_coverage
+    }
+
+@router.post("/global-rule")
+def update_global_rule(data: GlobalRuleSchema, db: Session = Depends(get_db)):
+    # 1. Simpan ke GlobalSettings
+    gs = _get_or_create_global_settings(db)
+    gs.default_avg_conf = data.default_avg_conf
+    gs.default_min_conf = data.default_min_conf
+    gs.default_min_coverage = data.default_min_coverage
+    
+    # 2. Bulk Update tabel PartRule
+    db.query(PartRule).update({
+        PartRule.avg_confidence: data.default_avg_conf,
+        PartRule.min_confidence: data.default_min_conf,
+        PartRule.min_coverage: data.default_min_coverage
+    })
+    db.commit()
+    return {"success": True, "message": "Global rule disimpan dan diaplikasikan ke semua part."}
 
 # --- MODELS API ---
 WEIGHTS_DIR = os.path.join(os.getcwd(), "weights")
@@ -157,7 +225,7 @@ def get_models():
     return models
 
 @router.post("/models")
-def upload_model(part_no: str = Form(...), file: UploadFile = File(...)):
+def upload_model(part_no: str = Form(...), file: UploadFile = File(...), db: Session = Depends(get_db)):
     if not file.filename.endswith('.pt'):
         raise HTTPException(status_code=400, detail="Only .pt files are allowed")
     
@@ -169,11 +237,77 @@ def upload_model(part_no: str = Form(...), file: UploadFile = File(...)):
     try:
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        return {"success": True, "message": f"Model for {part_no} uploaded successfully"}
+
+        # Auto-generate PartRule dari label .pt jika tersedia
+        try:
+            import torch
+            ckpt = torch.load(file_path, map_location="cpu", weights_only=False)
+            names = None
+            if isinstance(ckpt, dict) and 'model' in ckpt:
+                raw = getattr(ckpt['model'], 'names', None)
+                if raw is not None:
+                    names = [str(v) for k, v in sorted(raw.items(), key=lambda x: int(x[0]))]
+            if names:
+                gs = _get_or_create_global_settings(db)
+                db.query(PartRule).filter(PartRule.p_no == part_no).delete()
+                db.flush()
+                for label in names:
+                    db.add(PartRule(
+                        p_no=part_no,
+                        sisi="-",
+                        nama_komponen=label,
+                        qty=1,
+                        min_confidence=gs.default_min_conf,
+                        avg_confidence=gs.default_avg_conf,
+                        min_coverage=gs.default_min_coverage
+                    ))
+                db.commit()
+        except Exception as e_lbl:
+            print(f"Notice auto-generate rule: {e_lbl}")
+
+        return {"success": True, "message": f"Model for {part_no} uploaded and rules auto-generated!"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- USERS API ---
+@router.post("/models/preview-labels")
+async def preview_model_labels(file: UploadFile = File(...)):
+    """Baca label names dari file .pt sementara — tidak disimpan permanen."""
+    if not file.filename.endswith('.pt'):
+        raise HTTPException(status_code=400, detail="Only .pt files are allowed")
+    
+    try:
+        import torch
+    except ImportError:
+        raise HTTPException(status_code=500, detail="torch tidak terinstall di server")
+
+    # Tulis ke tempfile, baca labels, lalu hapus
+    tmp = tempfile.NamedTemporaryFile(suffix=".pt", delete=False)
+    try:
+        shutil.copyfileobj(file.file, tmp)
+        tmp.close()
+
+        ckpt = torch.load(tmp.name, map_location="cpu", weights_only=False)
+
+        # YOLO menyimpan names di ckpt['model'].names  → {0: 'nama', 1: 'nama', ...}
+        names = None
+        if isinstance(ckpt, dict) and 'model' in ckpt:
+            raw = getattr(ckpt['model'], 'names', None)
+            if raw is not None:
+                names = {str(k): v for k, v in raw.items()}
+        
+        if names is None:
+            raise HTTPException(status_code=422, detail="Label names tidak ditemukan di file .pt ini. Pastikan file adalah model YOLO yang valid.")
+
+        return {"label_count": len(names), "labels": names}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal membaca file .pt: {str(e)}")
+    finally:
+        os.unlink(tmp.name)
+
+
 @router.get("/users")
 def get_users(db: Session = Depends(get_db)):
     return db.query(User).all()

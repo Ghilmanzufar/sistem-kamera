@@ -1,5 +1,6 @@
 import time
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -9,17 +10,11 @@ from database_config import get_db, PartRule, Transaction, SessionLocal, SisonCo
 from sqlalchemy.sql import func
 
 router = APIRouter()
+security = HTTPBearer()
 
-def verify_api_key(x_api_key: str = Header(..., description="API Key dari konfigurasi Sison")):
-    """Verifikasi X-Api-Key header cocok dengan yang tersimpan di DB."""
-    db = SessionLocal()
-    try:
-        cfg = db.query(SisonConfig).first()
-        expected = cfg.api_key if cfg else "kamera-secret-key"
-        if x_api_key != expected:
-            raise HTTPException(status_code=401, detail="API Key tidak valid")
-    finally:
-        db.close()
+def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Hanya memastikan Bearer Token ada. Tidak memvalidasi isi token."""
+    pass
 
 
 # --- VALIDASI DATA MASUK (SCHEMAS) ---
@@ -64,7 +59,15 @@ def api_start(req: StartRequest, db: Session = Depends(get_db), _: None = Depend
     aturan = []
     sisi_set = set()
     for r in rules_rows:
-        aturan.append({"sisi": r.sisi, "nama_komponen": r.nama_komponen, "qty": r.qty})
+        # Normalize nama_komponen: lowercase+strip, konsisten dengan label model (model.names[cls].lower())
+        aturan.append({
+            "sisi": r.sisi, 
+            "nama_komponen": r.nama_komponen.strip().lower(), 
+            "qty": r.qty,
+            "min_confidence": r.min_confidence,
+            "avg_confidence": r.avg_confidence,
+            "min_coverage": getattr(r, 'min_coverage', 1.0)
+        })
         sisi_set.add(r.sisi)
 
     # Urutkan daftar sisi (Depan selalu dicek pertama jika ada)

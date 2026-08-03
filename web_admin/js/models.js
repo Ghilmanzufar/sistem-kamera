@@ -36,8 +36,70 @@ function renderModels(models) {
     });
 }
 
+// --- Label Preview ---
+const labelPreview = document.getElementById('label-preview');
+const labelPreviewContent = document.getElementById('label-preview-content');
+
+function resetLabelPreview() {
+    labelPreview.style.display = 'none';
+    labelPreviewContent.innerHTML = '';
+}
+
+function renderLabelPreview(data) {
+    const { label_count, labels } = data;
+    // Bangun baris: "Label  0 : klip_kuning"
+    const rows = Object.entries(labels)
+        .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+        .map(([idx, name], i) => {
+            const prefix = i === 0
+                ? `<strong>Label</strong>&nbsp;&nbsp;`
+                : `<span style="visibility:hidden">Label</span>&nbsp;&nbsp;`;
+            return `<div style="font-family: monospace; white-space: pre;">  ${prefix}<strong>${idx}</strong> : ${name}</div>`;
+        })
+        .join('');
+
+    labelPreviewContent.innerHTML = `
+        <div style="margin-bottom: 6px; color: #a0cfff; font-weight: 600; font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase;">
+            📋 Label Preview (dari model)
+        </div>
+        <div style="margin-bottom: 4px;">Jumlah label : <strong>${label_count}</strong></div>
+        <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 6px; margin-top: 4px;">
+            ${rows}
+        </div>
+    `;
+    labelPreview.style.display = 'block';
+}
+
+document.getElementById('input-model-file').addEventListener('change', async function () {
+    const file = this.files[0];
+    if (!file) { resetLabelPreview(); return; }
+
+    // Tampilkan loading
+    labelPreviewContent.innerHTML = '<span style="color:#aaa;">⏳ Membaca label dari file...</span>';
+    labelPreview.style.display = 'block';
+
+    const fd = new FormData();
+    fd.append('file', file);
+
+    try {
+        const res = await fetch(`${API_URL}/preview-labels`, { method: 'POST', body: fd });
+        const data = await res.json();
+
+        if (!res.ok) {
+            labelPreviewContent.innerHTML = `<span style="color:#ff7070;">⚠️ ${data.detail || 'Gagal membaca label'}</span>`;
+            return;
+        }
+        renderLabelPreview(data);
+    } catch (e) {
+        labelPreviewContent.innerHTML = '<span style="color:#ff7070;">⚠️ Gagal terhubung ke server.</span>';
+        console.error(e);
+    }
+});
+
+// --- Modal open/close ---
 document.getElementById('btn-add-model').onclick = () => {
     form.reset();
+    resetLabelPreview();
     modal.classList.remove('hidden');
 };
 
@@ -160,3 +222,4 @@ window.keluarAdmin = () => {
 
 // Start
 fetchModels();
+

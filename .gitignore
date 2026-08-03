@@ -3,3 +3,5 @@ weights/
 __pycache__/
 *.pyc
 .vscode/
+*.pt
+ng_records/*.jpg

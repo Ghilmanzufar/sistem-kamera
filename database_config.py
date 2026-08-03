@@ -12,7 +12,7 @@ DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("DB_NAME", "sugity_camera_db")
 DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "user")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "ghilman")
 
 SQLALCHEMY_DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
@@ -77,9 +77,19 @@ class PartRule(Base):
     __tablename__ = "part_rules"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     p_no = Column(String, index=True, nullable=False)
-    sisi = Column(String, nullable=False) # e.g., 'Depan', 'Belakang'
+    sisi = Column(String, default="-") # e.g., 'Depan', 'Belakang' atau '-'
     nama_komponen = Column(String, nullable=False)
-    qty = Column(Integer, nullable=False)
+    qty = Column(Integer, default=1)
+    min_confidence = Column(Float, default=0.70)
+    avg_confidence = Column(Float, default=0.75)
+    min_coverage = Column(Float, default=1.0)
+
+class GlobalSettings(Base):
+    __tablename__ = "global_settings"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    default_avg_conf = Column(Float, default=0.75)
+    default_min_conf = Column(Float, default=0.70)
+    default_min_coverage = Column(Float, default=1.0)
 
 class SisonConfig(Base):
     __tablename__ = "sison_config"

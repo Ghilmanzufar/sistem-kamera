@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
@@ -59,12 +59,27 @@
             <h3 id="modal-title">Upload / Replace Model (.pt)</h3>
             <form id="model-form">
                 <div class="form-group">
-                    <label>Part Number (Tanpa ekstensi)</label>
+                    <label>Part Number (Nama File / Part Name)</label>
                     <input type="text" id="input-model-pno" placeholder="Contoh: 74231-0K550-00" required>
                 </div>
                 <div class="form-group" style="margin-top: 1rem;">
                     <label>File Model (.pt)</label>
                     <input type="file" id="input-model-file" accept=".pt" required style="background: rgba(0,0,0,0.5);">
+                </div>
+
+                <!-- Label Preview — ditampilkan otomatis setelah file dipilih -->
+                <div id="label-preview" style="
+                    display: none;
+                    margin-top: 1rem;
+                    padding: 0.85rem 1rem;
+                    background: rgba(255,255,255,0.07);
+                    border: 1px solid rgba(255,255,255,0.15);
+                    border-radius: 8px;
+                    color: #fff;
+                    font-size: 0.85rem;
+                    line-height: 1.7;
+                ">
+                    <div id="label-preview-content"></div>
                 </div>
 
                 <div class="modal-actions">
@@ -80,7 +95,7 @@
             <form id="rename-form">
                 <input type="hidden" id="input-rename-old-pno">
                 <div class="form-group">
-                    <label>Part Number Baru (Tanpa ekstensi)</label>
+                    <label>Part Number Baru (Nama File / Part Name)</label>
                     <input type="text" id="input-rename-new-pno" required>
                 </div>
                 <div class="modal-actions">

@@ -197,7 +197,7 @@ class YoloApp(QWidget):
 
     def __init__(self):
         super().__init__()
-        # Load Camera Source from DB
+        # Mengembalikan manajemen kamera via Database agar dinamis (bisa diatur lewat Web Admin perusahaan).
         try:
             db = SessionLocal()
             active_cam = db.query(CameraConfig).filter(CameraConfig.is_active == True).first()
@@ -208,14 +208,20 @@ class YoloApp(QWidget):
             else:
                 cam_source = 0
             db.close()
-            print(f"[SYSTEM] Menggunakan sumber kamera: {cam_source}")
+            print(f"[SYSTEM] Menggunakan sumber kamera dari DB: {cam_source}")
         except Exception as e:
-            print(f"[WARNING] Gagal membaca konfigurasi kamera dari DB, fallback ke index 0. Error: {e}")
+            print(f"[WARNING] Gagal membaca DB, fallback ke index 0. Error: {e}")
             cam_source = 0
 
         self.cap = cv2.VideoCapture(cam_source)
+            
+        # 👱 Ponytail: Resolusi dibiarkan default. Memaksa resolusi (cap.set) di berbagai model komputer/kamera 
+        # bisa memicu hang driver (seperti sebelumnya). QPixmap sudah mengurus auto-scaling di UI.
+        # UPDATE: Diaktifkan kembali karena user butuh gambar yang lebar (HD). Jika hang lagi, berarti
+        # kamera tidak native support 720p di backend ini.
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)  
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        
         self.model = None # Lazy load model nanti saat Start Sison
         self.current_loaded_p_no = "" # Untuk mendeteksi perubahan part number dari Sison
         self.ng_popup_active = False
@@ -252,9 +258,22 @@ class YoloApp(QWidget):
         self.part_name.setStyleSheet("border: none; background: transparent;")
         self.part_name.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         
-        self.status_label = QLabel("<span style='color:#94a3b8; font-size:16px;'>STATUS MESIN</span><br/><span style='color:#cbd5e1; font-size:28px; font-weight:bold;'>STANDBY</span>", self)
+        status_container = QWidget(self)
+        status_layout = QVBoxLayout(status_container)
+        status_layout.setContentsMargins(0,0,0,0)
+        status_layout.setSpacing(2)
+        
+        self.status_label = QLabel("<span style='color:#94a3b8; font-size:16px;'>STATUS KAMERA</span><br/><span style='color:#cbd5e1; font-size:28px; font-weight:bold;'>STANDBY</span>", self)
         self.status_label.setStyleSheet("border: none; background: transparent;")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        # 🐎 ponytail: info_label untuk memindahkan teks qty & sisi dari overlay OpenCV
+        self.info_label = QLabel("<span style='color:#cbd5e1; font-size:14px; font-weight:bold;'>QTY: - | SISI: -</span>", self)
+        self.info_label.setStyleSheet("border: none; background: transparent;")
+        self.info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        status_layout.addWidget(self.status_label)
+        status_layout.addWidget(self.info_label)
         
         self.btn_admin = QPushButton("⚙️ ADMIN DASHBOARD", self)
         self.btn_admin.setFixedHeight(45)
@@ -269,7 +288,7 @@ class YoloApp(QWidget):
         right_layout.addWidget(self.btn_admin)
 
         hud_layout.addWidget(self.part_name, stretch=1)
-        hud_layout.addWidget(self.status_label, stretch=1)
+        hud_layout.addWidget(status_container, stretch=1)
         hud_layout.addWidget(right_container, stretch=1)
 
         self.btn_demo = QPushButton("🚀 DEMO SISON", self)
@@ -332,7 +351,7 @@ class YoloApp(QWidget):
                     db_session.close()
 
                 # Kirim HTTP POST ke API FastAPI kita sendiri
-                res = requests.post("http://localhost:8000/api/start", json=data_dict, headers={"X-Api-Key": api_key}, timeout=3)
+                res = requests.post("http://localhost:8000/api/start", json=data_dict, headers={"Authorization": f"Bearer {api_key}"}, timeout=3)
                 if res.status_code == 200:
                     QMessageBox.information(self, "Sukses", "Simulasi Sison Berhasil Dikirim!")
                 else:
@@ -390,7 +409,7 @@ class YoloApp(QWidget):
         else:
             self.hud_frame.setStyleSheet("#hud { background-color: #0f172a; border: none; border-radius: 10px; }")
             
-        self.status_label.setText(f"<span style='color:#94a3b8; font-size:16px;'>STATUS MESIN</span><br/><span style='color:{status_color}; font-size:28px; font-weight:bold;'>{status_text}</span>")
+        self.status_label.setText(f"<span style='color:#94a3b8; font-size:16px;'>STATUS KAMERA</span><br/><span style='color:{status_color}; font-size:28px; font-weight:bold;'>{status_text}</span>")
 
         # 2. Lazy Load Model (Ganti model otomatis jika p_no berubah)
         if p_no != "" and p_no != self.current_loaded_p_no:
@@ -405,11 +424,79 @@ class YoloApp(QWidget):
         frame, pesan_ui = KameraProses.proses_frame(frame, self.model)
         
         # 5. Render ke PyQt
-        self.status_label.setText(pesan_ui)
+        # Menjaga judul STATUS KAMERA agar tidak hilang saat ditimpa pesan_ui
+        self.status_label.setText(f"<span style='color:#94a3b8; font-size:16px;'>STATUS KAMERA</span><br/><span style='color:{status_color}; font-size:20px; font-weight:bold;'>{pesan_ui}</span>")
+        
+        # 🐎 ponytail: Update info QTY dan SISI (dipindah dari kamera)
+        side_text = "FRONT" if state.current_side == "F" else "REAR"
+        self.info_label.setText(f"<span style='color:#10b981; font-size:16px; font-weight:bold;'>SISA QTY: {sisa_qty}/{target_qty}  |  SISI: {side_text}</span>")
         rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        qt_image = QImage(rgb_image.data, rgb_image.shape[1], rgb_image.shape[0], QImage.Format.Format_RGB888)
+        
+        # 👱 Ponytail: Mencegah PyQt memory corruption dengan mendefinisikan bytesPerLine
+        h, w, ch = rgb_image.shape
+        bytes_per_line = ch * w
+        qt_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+        
         pixmap = QPixmap(qt_image).scaled(self.video_label.width(), self.video_label.height(), Qt.AspectRatioMode.KeepAspectRatio)
         self.video_label.setPixmap(pixmap)
+
+        # Cek Popup Part OK (Pop Up di Operator Screen)
+        should_popup_ok = False
+        should_popup_flip = False
+        with state.lock:
+            if getattr(state, 'part_ok_popup', False):
+                state.part_ok_popup = False
+                should_popup_ok = True
+            if getattr(state, 'flip_part_popup', False):
+                state.flip_part_popup = False
+                should_popup_flip = True
+
+        if should_popup_flip or should_popup_ok:
+            details = state.last_inspection_details
+            lbl_terdeteksi = details.get("label_terdeteksi", "-")
+            avg_conf = details.get("avg_confidence", "-")
+            found_labels = details.get("found_labels", "-")
+            
+            # Format list string (replace \n with <br>)
+            found_labels_html = found_labels.replace('\n', '<br>')
+            
+            if should_popup_flip:
+                title = "BALIK PART"
+                header_msg = "🔄 SISI DEPAN OK!"
+                sub_msg = "Balik Part ke SISI BELAKANG, lalu klik MOCK DETECT."
+            else:
+                title = "INSPEKSI OK"
+                header_msg = "✅ PART BERHASIL TERDETEKSI!"
+                sub_msg = "Semua label terdeteksi dan memenuhi standar confidence."
+                
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle(title)
+            msg_box.setIcon(QMessageBox.Icon.Information)
+            
+            # 🐎 ponytail: Gunakan HTML text agar format lebih rapi
+            html_text = f"""
+            <h3 style='margin-bottom: 5px;'>{header_msg}</h3>
+            <p style='color: #555;'>{sub_msg}</p>
+            <hr>
+            <table cellpadding='4'>
+                <tr>
+                    <td><b>Label Terdeteksi</b></td>
+                    <td>: {lbl_terdeteksi}</td>
+                </tr>
+                <tr>
+                    <td><b>Rata-rata Confidence</b></td>
+                    <td>: {avg_conf}</td>
+                </tr>
+            </table>
+            <br>
+            <b>Label yang ditemukan:</b><br>
+            <div style='font-family: monospace; color: #10b981; margin-top: 5px;'>
+                {found_labels_html}
+            </div>
+            """
+            
+            msg_box.setText(html_text)
+            msg_box.exec()
 
         # 6. Tangani NG Popup
         with state.lock:

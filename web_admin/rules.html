@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
@@ -32,14 +32,18 @@
             <section class="card">
                 <div class="card-header">
                     <h2>Part Rules</h2>
-                    <button id="btn-add-rule" class="btn-primary">+ Tambah Rule</button>
+                    <div>
+                        <button id="btn-global-rule" class="btn-secondary">⚙️ Setting Global Rule</button>
+                    </div>
                 </div>
                 <div class="table-wrapper">
                     <table id="rules-table">
                         <thead>
                             <tr>
                                 <th>Part No</th>
-                                <th>Komponen (Sisi / Nama / Qty)</th>
+                                <th>Kelengkapan Labelname</th>
+                                <th>Target Avg Conf</th>
+                                <th>Daftar Komponen & Standard Confidence</th>
                                 <th>Aksi</th>
                             </tr>
                         </thead>
@@ -59,13 +63,27 @@
             <form id="rule-form">
                 <div class="form-group">
                     <label>Part Number</label>
-                    <input type="text" id="input-pno" required>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="input-pno" placeholder="Contoh: 74231-0K550-00" required style="flex: 1;">
+                        <button type="button" id="btn-auto-load-model" class="btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">🔄 Load Labels dari Model (.pt)</button>
+                    </div>
                 </div>
-                <div class="form-group" style="margin-top: 2rem;">
+                <div class="form-group" style="margin-top: 1rem;">
+                    <div style="background: rgba(53, 200, 240, 0.1); border-left: 4px solid #35c8f0; padding: 10px 15px; border-radius: 4px; margin-bottom: 1rem; font-size: 0.85rem; color: #cbd5e1;">
+                        <strong>ℹ️ Info Deteksi 2 Sisi:</strong> Untuk setiap sisi yang diinspeksi (Front/Rear), <b>semua</b> label komponen dengan format prefix sisi tersebut (misal: <code>f-</code>) yang terdaftar di bawah ini <b>wajib terdeteksi seluruhnya (100% terpenuhi)</b> di kamera agar dapat lolos inspeksi (OK).
+                    </div>
+                    <label>Target Avg Confidence Minimal (0 - 100%)</label>
+                    <input type="number" id="input-avg-conf" step="1" min="0" max="100" value="75" required>
+                </div>
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label>Target Minimal Kelengkapan Labelname per Sisi (0 - 100%)</label>
+                    <input type="number" id="input-min-coverage" step="1" min="0" max="100" value="100" required>
+                </div>
+                <div class="form-group" style="margin-top: 1.5rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <label style="margin: 0;">Daftar Komponen</label>
+                        <label style="margin: 0;">Daftar Label Komponen & Standard Confidence</label>
                         <button type="button" id="btn-add-comp" class="btn-secondary"
-                            style="padding: 4px 8px; font-size: 0.8rem;">+ Tambah Komponen</button>
+                            style="padding: 4px 8px; font-size: 0.8rem;">+ Tambah Label</button>
                     </div>
                     <div id="components-container">
                         <!-- Komponen form akan muncul di sini -->
@@ -79,7 +97,63 @@
             </form>
         </div>
     </div>
+
+    <!-- Modal Global Rule -->
+    <div id="global-rule-modal" class="modal hidden">
+        <div class="modal-content glass-card" style="max-width: 500px;">
+            <h3>Setting Global Rule (Bulk Update)</h3>
+            <p style="font-size: 0.85rem; color: #cbd5e1; margin-bottom: 1rem; line-height: 1.5;">
+                Menyimpan rule global akan <b>menimpa (overwrite)</b> pengaturan seluruh part yang ada di tabel saat ini, sekaligus menjadi nilai default untuk upload model (.pt) baru.
+            </p>
+            <form id="global-rule-form">
+                <div class="form-group">
+                    <label>Target Kelengkapan Labelname Global (0 - 100%)</label>
+                    <input type="number" id="global-min-coverage" step="1" min="0" max="100" required>
+                </div>
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label>Target Avg Confidence Global (0 - 100%)</label>
+                    <input type="number" id="global-avg-conf" step="1" min="0" max="100" required>
+                </div>
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label>Target Min Confidence Komponen Global (0 - 100%)</label>
+                    <input type="number" id="global-min-conf" step="1" min="0" max="100" required>
+                </div>
+                <div class="modal-actions" style="margin-top: 2rem;">
+                    <button type="button" id="btn-global-cancel" class="btn-secondary">Batal</button>
+                    <button type="submit" class="btn-danger" style="background-color: #f59e0b; border-color: #f59e0b;">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div id="confirm-modal" class="modal hidden" style="z-index: 9999;">
+        <div class="modal-content glass-card" style="max-width: 400px; text-align: center;">
+            <h3 style="color: #f59e0b; font-size: 1.5rem; margin-bottom: 10px;">⚠️ Peringatan</h3>
+            <p style="font-size: 1rem; color: #cbd5e1; margin-bottom: 2rem; line-height: 1.5;">
+                Yakin ingin menimpa (overwrite) <b>SEMUA</b> rule part yang ada di tabel ini?
+            </p>
+            <div style="display: flex; justify-content: center; gap: 15px;">
+                <button type="button" id="btn-confirm-cancel" class="btn-secondary" style="min-width: 100px;">Batal</button>
+                <button type="button" id="btn-confirm-yes" class="btn-danger" style="background-color: #f59e0b; border-color: #f59e0b; min-width: 100px;">Ya, Timpa</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Modal -->
+    <div id="alert-modal" class="modal hidden" style="z-index: 10000;">
+        <div class="modal-content glass-card" style="max-width: 400px; text-align: center;">
+            <h3 id="alert-title" style="color: #22c55e; font-size: 1.5rem; margin-bottom: 10px;">✅ Info</h3>
+            <p id="alert-message" style="font-size: 1rem; color: #cbd5e1; margin-bottom: 2rem; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;">
+                Message here
+            </p>
+            <div style="display: flex; justify-content: center;">
+                <button type="button" id="btn-alert-ok" class="btn-primary" style="min-width: 120px;">OK</button>
+            </div>
+        </div>
+    </div>
+
     <script src="js/auth.js"></script>
-    <script src="js/rules.js"></script>
+    <script src="js/rules.js?v=2"></script>
 </body>
 </html>
