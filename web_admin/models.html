@@ -20,7 +20,7 @@
         <div class="nav-tabs">
             <a href="index.html">Live Dashboard</a>
             <a href="history_inspeksi.html">History Inspeksi</a>
-            <a href="rules.html">Setting Rules</a>
+            <a href="rules.html">Setting Global Rule</a>
             <a href="models.html" class="active">Model AI (.pt)</a>
             <a href="ng_history.html">History NG</a>
             <a href="users.html">Manajemen User</a>
@@ -105,8 +105,18 @@
             </form>
         </div>
     </div>
+    <div id="confirm-modal" class="modal hidden">
+        <div class="modal-content glass-card" style="max-width: 450px; text-align: center;">
+            <h3 style="color: #ffcc00; margin-bottom: 1rem;">⚠️ Konfirmasi Replace Model</h3>
+            <p id="confirm-message" style="margin-bottom: 1.5rem; color: #eee; line-height: 1.6;">Model sudah ada. Apakah Anda ingin menggantikannya?</p>
+            <div class="modal-actions" style="justify-content: center; gap: 1rem;">
+                <button type="button" id="btn-confirm-old" class="btn-secondary" style="padding: 8px 16px;">Pakai yang Lama</button>
+                <button type="button" id="btn-confirm-new" class="btn-primary" style="padding: 8px 16px; background: #ff4757; border: none;">Ganti Baru</button>
+            </div>
+        </div>
+    </div>
     
     <script src="js/auth.js"></script>
-    <script src="js/models.js"></script>
+    <script src="js/models.js?v=5"></script>
 </body>
 </html>

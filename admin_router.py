@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from database_config import get_db, PartRule, User, InspectionLog, Transaction, CameraConfig, SisonConfig, GlobalSettings
+from database_config import get_db, PartRule, User, InspectionLog, Transaction, CameraConfig, SisonConfig, GlobalSettings, hash_password
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from collections import defaultdict
 import os
 import shutil
@@ -9,7 +10,15 @@ import tempfile
 from typing import Optional
 from datetime import datetime
 
-router = APIRouter()
+admin_security = HTTPBearer()
+
+def verify_admin_auth(credentials: HTTPAuthorizationCredentials = Depends(admin_security)):
+    """👱 Ponytail: Proteksi endpoint admin dari akses tanpa token (curl/unauthorized)."""
+    secret = os.getenv("SECRET_KEY", "sugity_super_secret_key_2026")
+    if credentials.credentials != secret:
+        raise HTTPException(status_code=401, detail="Token Admin Tidak Valid / Ditolak")
+
+router = APIRouter(dependencies=[Depends(verify_admin_auth)])
 
 # --- SCHEMAS ---
 class ComponentSchema(BaseModel):
@@ -314,7 +323,7 @@ def get_users(db: Session = Depends(get_db)):
 
 @router.post("/users")
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
-    db_user = User(username=user.username, password=user.password, role=user.role, fullname=user.fullname, is_active=user.is_active)
+    db_user = User(username=user.username, password=hash_password(user.password), role=user.role, fullname=user.fullname, is_active=user.is_active)
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
@@ -327,7 +336,7 @@ def update_user(user_id: int, user: UserUpdate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
     db_user.username = user.username
     if user.password:
-        db_user.password = user.password
+        db_user.password = hash_password(user.password)
     db_user.role = user.role
     db_user.fullname = user.fullname
     db_user.is_active = user.is_active

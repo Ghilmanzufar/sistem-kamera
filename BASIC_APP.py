@@ -24,7 +24,7 @@ from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget, QApplication, QMessageBox, QPushButton, QHBoxLayout, QSizePolicy, QInputDialog, QDialog, QLineEdit, QFrame
 from PyQt6.QtGui import QImage, QPixmap
 
-from database_config import SessionLocal, CameraConfig, User
+from database_config import SessionLocal, CameraConfig, User, verify_password
 from terima_dari_sison import router as camera_router
 from proses_kamera import state, KameraProses
 import proses_kamera
@@ -35,12 +35,10 @@ logging.getLogger('ultralytics').setLevel(logging.WARNING)
 logging.getLogger().setLevel(logging.ERROR)
 
 def authenticate_and_get_role(username: str, pin: str, allowed_roles: list) -> str:
-    if username == "admin" and pin == "1234":
-        return "admin" # Fail-safe bawaan
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.username == username, User.password == pin, User.is_active == True).first()
-        if not user:
+        user = db.query(User).filter(User.username == username, User.is_active == True).first()
+        if not user or not verify_password(pin, user.password):
             return None
         if user.role not in allowed_roles:
             return None
@@ -230,6 +228,13 @@ class YoloApp(QWidget):
 
         # UI & Timers
         self.initUI()
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_frame)
+        self.timer.start(30) # Refresh 30 FPS
+        
+        # Start FastAPI
+        self.api_thread = threading.Thread(target=run_fastapi, daemon=True)
+        self.api_thread.start()
 
     def _open_camera(self):
         # 👱 Ponytail: Default OpenCV adalah 640x480 (VGA 4:3) yang terlihat kecil/kotak di layar monitor. 
@@ -238,13 +243,6 @@ class YoloApp(QWidget):
         if self.cap.isOpened():
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_frame)
-        self.timer.start(30) # Refresh 30 FPS
-        
-        # Start FastAPI
-        self.api_thread = threading.Thread(target=run_fastapi, daemon=True)
-        self.api_thread.start()
 
     def initUI(self):
         self.setWindowTitle("Sistem Kamera Inspeksi")
@@ -376,7 +374,8 @@ class YoloApp(QWidget):
         dialog = AdminAuthDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             role = getattr(dialog, 'authenticated_role', 'pengawas')
-            webbrowser.open(f"http://localhost:8000/admin?role={role}")
+            secret_token = os.getenv("SECRET_KEY", "sugity_super_secret_key_2026")
+            webbrowser.open(f"http://localhost:8000/admin/?role={role}&token={secret_token}")
 
     def trigger_mock_detect(self):
         with state.lock:

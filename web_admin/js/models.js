@@ -13,7 +13,10 @@ async function fetchModels() {
     }
 }
 
+let existingPartNos = new Set();
+
 function renderModels(models) {
+    existingPartNos = new Set(models.map(m => m.part_no));
     tbody.innerHTML = '';
     
     if (models.length === 0) {
@@ -47,9 +50,12 @@ function resetLabelPreview() {
 
 function renderLabelPreview(data) {
     const { label_count, labels } = data;
+    const sortedEntries = Object.entries(labels || {}).sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+    if (sortedEntries.length > 0) {
+        document.getElementById('input-model-pno').value = String(sortedEntries[0][1]).replace(/^[fr]-?/i, '');
+    }
     // Bangun baris: "Label  0 : klip_kuning"
-    const rows = Object.entries(labels)
-        .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+    const rows = sortedEntries
         .map(([idx, name], i) => {
             const prefix = i === 0
                 ? `<strong>Label</strong>&nbsp;&nbsp;`
@@ -118,6 +124,24 @@ form.onsubmit = async (e) => {
         return;
     }
 
+    if (existingPartNos.has(p_no)) {
+        document.getElementById('confirm-message').innerHTML = `Model untuk Part Number <strong style="color:#a0cfff;">"${p_no}"</strong> sudah terinstall di sistem.<br><br>Mau ganti baru atau pakai yang lama?`;
+        document.getElementById('confirm-modal').classList.remove('hidden');
+        
+        document.getElementById('btn-confirm-old').onclick = () => {
+            document.getElementById('confirm-modal').classList.add('hidden');
+        };
+        document.getElementById('btn-confirm-new').onclick = () => {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            performUpload(p_no, file);
+        };
+        return;
+    }
+
+    performUpload(p_no, file);
+};
+
+async function performUpload(p_no, file) {
     const formData = new FormData();
     formData.append('part_no', p_no);
     formData.append('file', file);
@@ -147,7 +171,7 @@ form.onsubmit = async (e) => {
         btnSubmit.innerText = "Upload";
         btnSubmit.disabled = false;
     }
-};
+}
 
 const renameModal = document.getElementById('rename-modal');
 const renameForm = document.getElementById('rename-form');

@@ -2,12 +2,39 @@
 // 1. Cek parameter URL untuk role baru saat login dari BASIC_APP.py
 const urlParams = new URLSearchParams(window.location.search);
 const roleParam = urlParams.get('role');
+const tokenParam = urlParams.get('token');
 
 if (roleParam) {
     localStorage.setItem('user_role', roleParam);
-    // Hapus parameter role dari URL agar terlihat bersih
+}
+if (tokenParam) {
+    localStorage.setItem('admin_token', tokenParam);
+}
+if (roleParam || tokenParam) {
+    // Hapus parameter rahasia dari URL agar terlihat bersih
     window.history.replaceState({}, document.title, window.location.pathname);
 }
+
+// 👱 Ponytail: Injeksi header Authorization secara otomatis ke setiap panggilan API Admin (0% boilerplate di file JS lain!)
+const origFetch = window.fetch;
+window.fetch = async function(url, options = {}) {
+    const urlStr = typeof url === 'string' ? url : (url && url.url ? url.url : '');
+    if (urlStr.includes('/api/admin')) {
+        options = options || {};
+        options.headers = options.headers || {};
+        const token = localStorage.getItem('admin_token') || '';
+        if (options.headers instanceof Headers) {
+            options.headers.set('Authorization', 'Bearer ' + token);
+        } else {
+            options.headers['Authorization'] = 'Bearer ' + token;
+        }
+    }
+    const response = await origFetch(url, options);
+    if (response.status === 401 || response.status === 403) {
+        console.warn("[Auth] Token kosong atau kadaluwarsa. Silakan tutup browser & login ulang dari GUI BASIC_APP.py!");
+    }
+    return response;
+};
 
 // 2. Terapkan Restriksi Role
 document.addEventListener("DOMContentLoaded", () => {

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistem Kamera - Admin Dashboard (Rules)</title>
+    <title>Sistem Kamera - Admin Dashboard (Setting Global Rule)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 </head>
@@ -20,7 +20,7 @@
         <div class="nav-tabs">
             <a href="index.html">Live Dashboard</a>
             <a href="history_inspeksi.html">History Inspeksi</a>
-            <a href="rules.html" class="active">Setting Rules</a>
+            <a href="rules.html" class="active">Setting Global Rule</a>
             <a href="models.html">Model AI (.pt)</a>
             <a href="ng_history.html">History NG</a>
             <a href="users.html">Manajemen User</a>
@@ -28,102 +28,33 @@
             <a href="sison_config.html">Konfigurasi Sison</a>
         </div>
 
-        <main>
-            <section class="card">
-                <div class="card-header">
-                    <h2>Part Rules</h2>
-                    <div>
-                        <button id="btn-global-rule" class="btn-secondary">⚙️ Setting Global Rule</button>
+        <main style="display: flex; justify-content: center; align-items: center; min-height: 60vh;">
+            <section class="card glass-card" style="max-width: 600px; width: 100%; padding: 2rem; border-radius: 16px;">
+                <div style="text-align: center; margin-bottom: 1.5rem;">
+                    <h2 style="font-size: 1.5rem; color: #fff; margin-bottom: 0.5rem;">⚙️ Setting Global Rule (Bulk Update)</h2>
+                    <p style="font-size: 0.9rem; color: #cbd5e1; line-height: 1.6;">
+                        Pengaturan ini akan <b>menimpa (overwrite)</b> standar parameter seluruh model part yang terinstall saat ini, sekaligus menjadi default untuk upload model (.pt) baru di masa depan.
+                    </p>
+                </div>
+                <form id="global-rule-form">
+                    <div class="form-group">
+                        <label style="color: #94a3b8; font-weight: 600;">Target Minimal Kelengkapan Labelname per Sisi (0 - 100%)</label>
+                        <input type="number" id="global-min-coverage" step="1" min="0" max="100" required style="padding: 12px; font-size: 1rem; margin-top: 6px;">
                     </div>
-                </div>
-                <div class="table-wrapper">
-                    <table id="rules-table">
-                        <thead>
-                            <tr>
-                                <th>Part No</th>
-                                <th>Kelengkapan Labelname</th>
-                                <th>Target Avg Conf</th>
-                                <th>Daftar Komponen & Standard Confidence</th>
-                                <th>Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody id="rules-body">
-                            <!-- Injected by JS -->
-                        </tbody>
-                    </table>
-                </div>
+                    <div class="form-group" style="margin-top: 1.25rem;">
+                        <label style="color: #94a3b8; font-weight: 600;">Target Avg Confidence Global (0 - 100%)</label>
+                        <input type="number" id="global-avg-conf" step="1" min="0" max="100" required style="padding: 12px; font-size: 1rem; margin-top: 6px;">
+                    </div>
+                    <div class="form-group" style="margin-top: 1.25rem;">
+                        <label style="color: #94a3b8; font-weight: 600;">Target Min Confidence Komponen Global (0 - 100%)</label>
+                        <input type="number" id="global-min-conf" step="1" min="0" max="100" required style="padding: 12px; font-size: 1rem; margin-top: 6px;">
+                    </div>
+                    <div style="margin-top: 2rem; text-align: center;">
+                        <button type="submit" class="btn-primary" style="background-color: #f59e0b; border-color: #f59e0b; padding: 12px 30px; font-size: 1rem; width: 100%; font-weight: bold; border-radius: 10px;">Simpan & Terapkan Global Rule</button>
+                    </div>
+                </form>
             </section>
         </main>
-    </div>
-
-    <!-- Modal Form -->
-    <div id="rule-modal" class="modal hidden">
-        <div class="modal-content glass-card" style="max-width: 700px;">
-            <h3 id="modal-title">Tambah / Edit Rule</h3>
-            <form id="rule-form">
-                <div class="form-group">
-                    <label>Part Number</label>
-                    <div style="display: flex; gap: 10px;">
-                        <input type="text" id="input-pno" placeholder="Contoh: 74231-0K550-00" required style="flex: 1;">
-                        <button type="button" id="btn-auto-load-model" class="btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">🔄 Load Labels dari Model (.pt)</button>
-                    </div>
-                </div>
-                <div class="form-group" style="margin-top: 1rem;">
-                    <div style="background: rgba(53, 200, 240, 0.1); border-left: 4px solid #35c8f0; padding: 10px 15px; border-radius: 4px; margin-bottom: 1rem; font-size: 0.85rem; color: #cbd5e1;">
-                        <strong>ℹ️ Info Deteksi 2 Sisi:</strong> Untuk setiap sisi yang diinspeksi (Front/Rear), <b>semua</b> label komponen dengan format prefix sisi tersebut (misal: <code>f-</code>) yang terdaftar di bawah ini <b>wajib terdeteksi seluruhnya (100% terpenuhi)</b> di kamera agar dapat lolos inspeksi (OK).
-                    </div>
-                    <label>Target Avg Confidence Minimal (0 - 100%)</label>
-                    <input type="number" id="input-avg-conf" step="1" min="0" max="100" value="75" required>
-                </div>
-                <div class="form-group" style="margin-top: 1rem;">
-                    <label>Target Minimal Kelengkapan Labelname per Sisi (0 - 100%)</label>
-                    <input type="number" id="input-min-coverage" step="1" min="0" max="100" value="100" required>
-                </div>
-                <div class="form-group" style="margin-top: 1.5rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <label style="margin: 0;">Daftar Label Komponen & Standard Confidence</label>
-                        <button type="button" id="btn-add-comp" class="btn-secondary"
-                            style="padding: 4px 8px; font-size: 0.8rem;">+ Tambah Label</button>
-                    </div>
-                    <div id="components-container">
-                        <!-- Komponen form akan muncul di sini -->
-                    </div>
-                </div>
-
-                <div class="modal-actions">
-                    <button type="button" id="btn-cancel" class="btn-secondary">Batal</button>
-                    <button type="submit" class="btn-primary">Simpan</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Modal Global Rule -->
-    <div id="global-rule-modal" class="modal hidden">
-        <div class="modal-content glass-card" style="max-width: 500px;">
-            <h3>Setting Global Rule (Bulk Update)</h3>
-            <p style="font-size: 0.85rem; color: #cbd5e1; margin-bottom: 1rem; line-height: 1.5;">
-                Menyimpan rule global akan <b>menimpa (overwrite)</b> pengaturan seluruh part yang ada di tabel saat ini, sekaligus menjadi nilai default untuk upload model (.pt) baru.
-            </p>
-            <form id="global-rule-form">
-                <div class="form-group">
-                    <label>Target Kelengkapan Labelname Global (0 - 100%)</label>
-                    <input type="number" id="global-min-coverage" step="1" min="0" max="100" required>
-                </div>
-                <div class="form-group" style="margin-top: 1rem;">
-                    <label>Target Avg Confidence Global (0 - 100%)</label>
-                    <input type="number" id="global-avg-conf" step="1" min="0" max="100" required>
-                </div>
-                <div class="form-group" style="margin-top: 1rem;">
-                    <label>Target Min Confidence Komponen Global (0 - 100%)</label>
-                    <input type="number" id="global-min-conf" step="1" min="0" max="100" required>
-                </div>
-                <div class="modal-actions" style="margin-top: 2rem;">
-                    <button type="button" id="btn-global-cancel" class="btn-secondary">Batal</button>
-                    <button type="submit" class="btn-danger" style="background-color: #f59e0b; border-color: #f59e0b;">Simpan</button>
-                </div>
-            </form>
-        </div>
     </div>
 
     <!-- Confirm Modal -->
@@ -131,7 +62,7 @@
         <div class="modal-content glass-card" style="max-width: 400px; text-align: center;">
             <h3 style="color: #f59e0b; font-size: 1.5rem; margin-bottom: 10px;">⚠️ Peringatan</h3>
             <p style="font-size: 1rem; color: #cbd5e1; margin-bottom: 2rem; line-height: 1.5;">
-                Yakin ingin menimpa (overwrite) <b>SEMUA</b> rule part yang ada di tabel ini?
+                Yakin ingin menimpa (overwrite) <b>SEMUA</b> rule part terinstall dengan parameter baru ini?
             </p>
             <div style="display: flex; justify-content: center; gap: 15px;">
                 <button type="button" id="btn-confirm-cancel" class="btn-secondary" style="min-width: 100px;">Batal</button>
@@ -154,6 +85,6 @@
     </div>
 
     <script src="js/auth.js"></script>
-    <script src="js/rules.js?v=2"></script>
+    <script src="js/rules.js?v=3"></script>
 </body>
 </html>

@@ -12,7 +12,30 @@ DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("DB_NAME", "sugity_camera_db")
 DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "ghilman")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+
+import hashlib
+import secrets
+
+def hash_password(password: str) -> str:
+    if password.startswith("pbkdf2:"):
+        return password
+    salt = secrets.token_hex(8)
+    hashed = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100000).hex()
+    return f"pbkdf2:{salt}:{hashed}"
+
+def verify_password(plain: str, stored: str) -> bool:
+    if not stored:
+        return False
+    if not stored.startswith("pbkdf2:"):
+        # 👱 Ponytail ceiling: Backward compatibility untuk password lama tipe plaintext
+        return plain == stored
+    parts = stored.split(":")
+    if len(parts) != 3:
+        return False
+    _, salt, hashed = parts
+    check = hashlib.pbkdf2_hmac("sha256", plain.encode(), salt.encode(), 100000).hex()
+    return secrets.compare_digest(check, hashed)
 
 SQLALCHEMY_DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
@@ -99,3 +122,23 @@ class SisonConfig(Base):
 
 # Buat semua tabel jika belum ada
 Base.metadata.create_all(bind=engine)
+
+# 👱 Ponytail: Pastikan minimal ada 1 user admin di DB karena backdoor hardcoded di aplikasi telah dihapus
+def _seed_default_admin():
+    try:
+        with SessionLocal() as db:
+            if not db.query(User).first():
+                default_admin = User(
+                    username="admin",
+                    password=hash_password("1234"),
+                    role="admin",
+                    fullname="Default Administrator",
+                    is_active=True
+                )
+                db.add(default_admin)
+                db.commit()
+                print("[SYSTEM] Default admin seeded (username: admin, pin: 1234). Harap segera ubah PIN di Web Admin.")
+    except Exception as e:
+        print(f"[WARN] Gagal seeding default admin: {e}")
+
+_seed_default_admin()

@@ -13,8 +13,15 @@ router = APIRouter()
 security = HTTPBearer()
 
 def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Hanya memastikan Bearer Token ada. Tidak memvalidasi isi token."""
-    pass
+    """👱 Ponytail: Validasi Bearer token dari Sison terhadap api_key di tabel SisonConfig."""
+    db = SessionLocal()
+    try:
+        cfg = db.query(SisonConfig).first()
+        valid_key = cfg.api_key if cfg else "kamera-secret-key"
+        if credentials.credentials != valid_key:
+            raise HTTPException(status_code=401, detail="API Key dari Sison tidak valid / Ditolak")
+    finally:
+        db.close()
 
 
 # --- VALIDASI DATA MASUK (SCHEMAS) ---
