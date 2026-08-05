@@ -26,7 +26,7 @@ def log_inspeksi_db(id_trans: str, part_no: str, status_deteksi: str):
             if trans:
                 trans.qty_actual += 1
                 if trans.qty_actual >= trans.target_qty:
-                    trans.status = 2 # 2 = Selesai
+                    trans.status = 1  # 👱 Ponytail: 1 = SUKSES / OK (sesuai spesifikasi workflow.md)
                     trans.end_time = func.now()
             
             db.commit()
@@ -130,7 +130,8 @@ class KameraProses:
             min_conf_failed = False
 
             if model is not None:
-                results = model.track(frame, persist=True, verbose=False)
+                # 👱 Ponytail: Injeksi conf=0.20 di level Torch/engine untuk memangkas kalkulasi bounding box sampah & mendongkrak FPS
+                results = model.track(frame, persist=True, verbose=False, conf=0.20)
                 for result in results:
                     if result.boxes is not None:
                         for box in result.boxes:
@@ -254,8 +255,8 @@ class KameraProses:
                             threading.Thread(target=log_inspeksi_db, args=(state.id_trans, state.p_no, "OK")).start()
                             
                             if state.qty <= 0:
+                                state.status = "COMPLETED"
                                 threading.Thread(target=kirim_sison.SisonSender.send_callback, args=(state.id_trans, 1)).start()
-                                state.status = "STANDBY"
                                 pesan_ui = "INSPEKSI SELESAI!"
                                 color_status = (0, 255, 0)
                             else:

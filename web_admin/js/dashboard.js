@@ -15,9 +15,9 @@ function renderTransactions(trans) {
     if (!tbody_trans) return; 
     tbody_trans.innerHTML = '';
     trans.forEach(t => {
-        let statusBadge = t.status === 2 
-            ? '<span class="status-badge status-selesai">Selesai</span>'
-            : '<span class="status-badge status-running">Running</span>';
+        let statusBadge = t.status === 1 
+            ? '<span class="status-badge status-selesai">Selesai (OK)</span>'
+            : (t.status === 2 ? '<span class="status-badge status-running">Running</span>' : '<span style="color:red; font-weight:bold;">NG / Gagal</span>');
             
         let startTime = t.start_time ? new Date(t.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-';
         let endTime = t.end_time ? new Date(t.end_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-';
@@ -41,10 +41,3 @@ function renderTransactions(trans) {
 // Start
 fetchTransactions();
 setInterval(fetchTransactions, 3000);
-
-window.keluarAdmin = () => {
-    if (confirm("Keluar dari Admin Dashboard?")) {
-        window.close();
-        document.body.innerHTML = "<h2 style='color:white; text-align:center; margin-top:50px;'>Silakan tutup tab browser ini.</h2>";
-    }
-};

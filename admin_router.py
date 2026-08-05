@@ -11,11 +11,12 @@ from typing import Optional
 from datetime import datetime
 
 admin_security = HTTPBearer()
+import secrets
 
 def verify_admin_auth(credentials: HTTPAuthorizationCredentials = Depends(admin_security)):
-    """👱 Ponytail: Proteksi endpoint admin dari akses tanpa token (curl/unauthorized)."""
+    """👱 Ponytail: Proteksi endpoint admin dari akses tanpa token (curl/unauthorized) dengan constant-time comparison."""
     secret = os.getenv("SECRET_KEY", "sugity_super_secret_key_2026")
-    if credentials.credentials != secret:
+    if not secrets.compare_digest(credentials.credentials, secret):
         raise HTTPException(status_code=401, detail="Token Admin Tidak Valid / Ditolak")
 
 router = APIRouter(dependencies=[Depends(verify_admin_auth)])
@@ -78,23 +79,20 @@ def get_transactions(date_filter: Optional[str] = None, db: Session = Depends(ge
     trans = query.order_by(Transaction.start_time.desc()).limit(50).all()
     return trans
 
-from typing import Optional
-from datetime import datetime
-
 @router.get("/ng-logs")
 def get_ng_logs(date_filter: Optional[str] = None, db: Session = Depends(get_db)):
     query = db.query(InspectionLog).filter(InspectionLog.detection_status == 'NG')
     
     if date_filter:
         try:
-            start_date = datetime(filter_date.year, filter_date.month, filter_date.day, 0, 0, 0)
-            end_date = datetime(filter_date.year, filter_date.month, filter_date.day, 23, 59, 59)
+            f_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
+            start_date = datetime(f_date.year, f_date.month, f_date.day, 0, 0, 0)
+            end_date = datetime(f_date.year, f_date.month, f_date.day, 23, 59, 59)
             query = query.filter(InspectionLog.created_at >= start_date, InspectionLog.created_at <= end_date)
         except ValueError:
             pass
             
-    logs = query.order_by(InspectionLog.created_at.desc()).limit(100).all()
-    return logs
+    return query.order_by(InspectionLog.created_at.desc()).limit(100).all()
 
 # --- PART RULES API ---
 @router.get("/rules")

@@ -35,10 +35,10 @@ function renderTransactions(transactions) {
     transactions.forEach(t => {
         const tr = document.createElement('tr');
         
-        let statusStr = "Unknown";
-        if (t.status === 0) statusStr = "<span style='color:orange;'>Running</span>";
-        else if (t.status === 1) statusStr = "<span style='color:green;'>OK</span>";
-        else if (t.status === 2) statusStr = "<span style='color:red;'>NG</span>";
+        let statusStr = "<span style='color:#94a3b8;'>Unknown</span>";
+        if (t.status === 2) statusStr = "<span style='color:orange; font-weight:bold;'>Running</span>";
+        else if (t.status === 1) statusStr = "<span style='color:green; font-weight:bold;'>OK</span>";
+        else if (t.status === 0) statusStr = "<span style='color:red; font-weight:bold;'>NG</span>";
         
         let startTime = new Date(t.start_time).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
@@ -69,9 +69,9 @@ document.getElementById('btn-export').onclick = () => {
     // Isi Data
     currentData.forEach(t => {
         let statusStr = "Unknown";
-        if (t.status === 0) statusStr = "Running";
+        if (t.status === 2) statusStr = "Running";
         else if (t.status === 1) statusStr = "OK";
-        else if (t.status === 2) statusStr = "NG";
+        else if (t.status === 0) statusStr = "NG";
         
         // Escape koma pada data jika ada
         const row = [
@@ -101,13 +101,6 @@ document.getElementById('btn-export').onclick = () => {
 
 // Re-fetch when date changes
 filterDate.addEventListener('change', fetchTransactions);
-
-window.keluarAdmin = () => {
-    if (confirm("Keluar dari Admin Dashboard?")) {
-        window.close();
-        document.body.innerHTML = "<h2 style='color:white; text-align:center; margin-top:50px;'>Silakan tutup tab browser ini.</h2>";
-    }
-};
 
 // Start
 fetchTransactions();

@@ -82,13 +82,6 @@ document.getElementById('btn-close-modal').onclick = () => {
 // Re-fetch when date changes
 filterDate.addEventListener('change', fetchNGLogs);
 
-window.keluarAdmin = () => {
-    if (confirm("Keluar dari Admin Dashboard?")) {
-        window.close();
-        document.body.innerHTML = "<h2 style='color:white; text-align:center; margin-top:50px;'>Silakan tutup tab browser ini.</h2>";
-    }
-};
-
 // Start
 fetchNGLogs();
 setInterval(fetchNGLogs, 3000);

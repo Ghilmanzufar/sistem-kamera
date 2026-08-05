@@ -108,12 +108,5 @@ globalForm.onsubmit = async (e) => {
     }
 };
 
-window.keluarAdmin = () => {
-    if (confirm("Keluar dari Admin Dashboard?")) {
-        window.close();
-        document.body.innerHTML = "<h2 style='color:white; text-align:center; margin-top:50px;'>Silakan tutup tab browser ini.</h2>";
-    }
-};
-
 // Start
 fetchGlobalRule();

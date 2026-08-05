@@ -44,7 +44,7 @@ def api_start(req: StartRequest, db: Session = Depends(get_db), _: None = Depend
     if existing_trans:
         existing_trans.target_qty = req.qty
         existing_trans.qty_actual = 0
-        existing_trans.status = 1
+        existing_trans.status = 2  # 👱 Ponytail: 2 = PROSES / RUNNING (sesuai spesifikasi workflow.md)
         existing_trans.start_time = func.now()
     else:
         new_trans = Transaction(
@@ -55,7 +55,7 @@ def api_start(req: StartRequest, db: Session = Depends(get_db), _: None = Depend
             unique_no=req.unique_no,
             target_qty=req.qty,
             qty_actual=0,
-            status=1,
+            status=2,  # 👱 Ponytail: 2 = PROSES / RUNNING
             start_time=func.now()
         )
         db.add(new_trans)

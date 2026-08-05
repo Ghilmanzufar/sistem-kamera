@@ -224,6 +224,7 @@ class YoloApp(QWidget):
         
         self.model = None # Lazy load model nanti saat Start Sison
         self.current_loaded_p_no = "" # Untuk mendeteksi perubahan part number dari Sison
+        self.last_model_mtime = 0.0 # 👱 Ponytail: Mendeteksi jika file .pt diperbarui via Web Admin
         self.ng_popup_active = False
 
         # UI & Timers
@@ -405,9 +406,13 @@ class YoloApp(QWidget):
         status_color = "#cbd5e1" # Default Gray
         status_text = "STANDBY"
         
-        if current_status == "OK":
+        if current_status in ["OK", "RUNNING"]:
             status_color = "#22c55e" # Green
-            status_text = "INSPEKSI AKTIF"
+            status_text = "INSPEKSI AKTIF" if current_status == "OK" else "PROSES (RUNNING)"
+            self.hud_frame.setStyleSheet("#hud { background-color: #0f172a; border: none; border-radius: 10px; }")
+        elif current_status == "COMPLETED":
+            status_color = "#38bdf8" # Sky Blue
+            status_text = "SELESAI (OK)"
             self.hud_frame.setStyleSheet("#hud { background-color: #0f172a; border: none; border-radius: 10px; }")
         elif current_status == "NG":
             status_color = "#ef4444" # Red
@@ -420,10 +425,13 @@ class YoloApp(QWidget):
             
         self.status_label.setText(f"<span style='color:#94a3b8; font-size:16px;'>STATUS KAMERA</span><br/><span style='color:{status_color}; font-size:28px; font-weight:bold;'>{status_text}</span>")
 
-        # 2. Lazy Load Model (Ganti model otomatis jika p_no berubah)
-        if p_no != "" and p_no != self.current_loaded_p_no:
+        # 2. Lazy & Hot-Reload Model (Ganti model jika p_no berubah ATAU file .pt diperbarui di Web Admin)
+        model_path = os.path.join(os.getcwd(), "weights", f"{p_no}.pt")
+        curr_mtime = os.path.getmtime(model_path) if os.path.exists(model_path) else 0.0
+        if p_no != "" and (p_no != self.current_loaded_p_no or curr_mtime > getattr(self, 'last_model_mtime', 0.0)):
             self.model = KameraProses.load_model(p_no)
             self.current_loaded_p_no = p_no
+            self.last_model_mtime = curr_mtime
 
         # 3. Baca Kamera
         ret, frame = self.cap.read() if self.cap.isOpened() else (False, None)
@@ -558,7 +566,7 @@ class YoloApp(QWidget):
         with state.lock:
             current_status = state.status
             
-        if current_status != "STANDBY":
+        if current_status not in ["STANDBY", "COMPLETED"]:
             QMessageBox.warning(self, "Peringatan", f"Aplikasi sedang berjalan (Status: {current_status})!\nSelesaikan inspeksi terlebih dahulu sebelum menutup aplikasi.")
             event.ignore()
             return

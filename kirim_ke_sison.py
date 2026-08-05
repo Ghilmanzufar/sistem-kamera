@@ -13,8 +13,12 @@ def _get_callback_url() -> str:
 class SisonSender:
     @staticmethod
     def send_callback(id_trans: str, status: int = 1):
-        # ponytail: Callback ke Sison API dinonaktifkan sementara untuk pengujian lokal.
-        # Ceiling: Hapus return di bawah ini untuk mengaktifkan kembali integrasi Sison.
-        print(f"[MOCK SISON] Callback Sison dinonaktifkan sementara. (id_trans: {id_trans})")
-        return
+        # 👱 Ponytail: Coba kirim callback HTTP ke Sison, jatuh ke logging jika server Sison belum aktif/mocked.
+        url = _get_callback_url()
+        payload = {"id_trans": id_trans, "status": status}
+        try:
+            res = requests.post(url, json=payload, timeout=2.0)
+            print(f"[SISON CALLBACK] Berhasil terkirim ke {url}: {payload} | Status: {res.status_code}")
+        except Exception as e:
+            print(f"[MOCK SISON / OFFLINE] Gagal kirim ke {url}, mode lokal aktif. Data: {payload} | Notice: {e}")
 
