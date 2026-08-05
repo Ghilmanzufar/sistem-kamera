@@ -1,18 +1,9 @@
-// auth.js
-// 1. Cek parameter URL untuk role baru saat login dari BASIC_APP.py
-const urlParams = new URLSearchParams(window.location.search);
-const roleParam = urlParams.get('role');
-const tokenParam = urlParams.get('token');
+// auth.js - 👱 Ponytail Zero-Bloat Auth
+const isLoginPage = window.location.pathname.endsWith('login.html');
+const adminToken = localStorage.getItem('admin_token');
 
-if (roleParam) {
-    localStorage.setItem('user_role', roleParam);
-}
-if (tokenParam) {
-    localStorage.setItem('admin_token', tokenParam);
-}
-if (roleParam || tokenParam) {
-    // Hapus parameter rahasia dari URL agar terlihat bersih
-    window.history.replaceState({}, document.title, window.location.pathname);
+if (!adminToken && !isLoginPage) {
+    window.location.href = 'login.html';
 }
 
 // 👱 Ponytail: Injeksi header Authorization secara otomatis ke setiap panggilan API Admin (0% boilerplate di file JS lain!)
@@ -31,7 +22,11 @@ window.fetch = async function(url, options = {}) {
     }
     const response = await origFetch(url, options);
     if (response.status === 401 || response.status === 403) {
-        console.warn("[Auth] Token kosong atau kadaluwarsa. Silakan tutup browser & login ulang dari GUI BASIC_APP.py!");
+        console.warn("[Auth] Token tidak valid atau kadaluwarsa.");
+        if (!isLoginPage) {
+            localStorage.removeItem('admin_token');
+            window.location.href = 'login.html';
+        }
     }
     return response;
 };
@@ -64,7 +59,9 @@ document.addEventListener("DOMContentLoaded", () => {
 // 👱 Ponytail: Fungsi keluarAdmin dipasang terpusat di auth.js (menghilangkan duplikasi boilerplate di semua file JS)
 window.keluarAdmin = () => {
     if (confirm("Keluar dari Admin Dashboard?")) {
-        window.close();
-        document.body.innerHTML = "<h2 style='color:white; text-align:center; margin-top:50px;'>Silakan tutup tab browser ini.</h2>";
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('user_role');
+        localStorage.removeItem('username');
+        window.location.href = 'login.html';
     }
 };

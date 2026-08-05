@@ -52,6 +52,7 @@ def authenticate_and_get_role(username: str, pin: str, allowed_roles: list) -> s
 # Setup FastAPI App
 app_fastapi = FastAPI(title="Sistem Kamera API")
 app_fastapi.include_router(camera_router, prefix="/api")
+app_fastapi.include_router(admin_router.public_router, prefix="/api")
 
 # --- CUSTOM WEB ADMIN CONFIGURATION ---
 
@@ -129,70 +130,6 @@ class NGValidationDialog(QDialog):
     def check_pin(self):
         role = authenticate_and_get_role(self.username_input.text(), self.pin_input.text(), ["admin", "pengawas"])
         if role:
-            self.accept()
-        else:
-            QMessageBox.warning(self, "Ditolak", "Username/PIN Salah atau Anda tidak terdaftar!")
-            self.pin_input.clear()
-
-class AdminAuthDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Otentikasi Admin")
-        self.setStyleSheet("background-color: #222; color: white; font-size: 24px;")
-        
-        layout = QVBoxLayout()
-        layout.setSpacing(20)
-        layout.setContentsMargins(30, 30, 30, 30)
-        
-        # 1. Pesan
-        msg_label = QLabel("🔐 OTENTIKASI ADMIN 🔐\nMasukkan PIN untuk mengakses Dashboard Admin.", self)
-        msg_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        msg_label.setStyleSheet("color: #44aaff; font-weight: bold; font-size: 26px;")
-        layout.addWidget(msg_label)
-        
-        # 2. Input Username
-        self.username_input = QLineEdit(self)
-        self.username_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.username_input.setPlaceholderText("Masukkan Username...")
-        self.username_input.setStyleSheet("background-color: white; color: black; font-size: 32px; padding: 10px; border-radius: 8px; margin-bottom: 10px;")
-        layout.addWidget(self.username_input)
-        
-        # 3. Input PIN
-        self.pin_input = QLineEdit(self)
-        self.pin_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.pin_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.pin_input.setPlaceholderText("Masukkan PIN Admin...")
-        self.pin_input.setStyleSheet("background-color: white; color: black; font-size: 32px; padding: 10px; border-radius: 8px;")
-        layout.addWidget(self.pin_input)
-        
-        # 3. Tombol
-        btn_layout = QHBoxLayout()
-        self.btn_login = QPushButton("LOGIN", self)
-        self.btn_login.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_login.setStyleSheet("""
-            QPushButton {
-                background-color: #44aaff; 
-                color: white; 
-                font-weight: bold; 
-                font-size: 28px; 
-                padding: 15px; 
-                border-radius: 8px;
-            }
-            QPushButton:hover {
-                background-color: #66bbff;
-            }
-        """)
-        self.btn_login.clicked.connect(self.check_pin)
-        
-        btn_layout.addWidget(self.btn_login)
-        layout.addLayout(btn_layout)
-        
-        self.setLayout(layout)
-
-    def check_pin(self):
-        role = authenticate_and_get_role(self.username_input.text(), self.pin_input.text(), ["admin", "pengawas"])
-        if role:
-            self.authenticated_role = role
             self.accept()
         else:
             QMessageBox.warning(self, "Ditolak", "Username/PIN Salah atau Anda tidak terdaftar!")
@@ -372,11 +309,8 @@ class YoloApp(QWidget):
                 QMessageBox.critical(self, "Error Jaringan", f"Gagal menghubungi server lokal: {e}")
 
     def prompt_admin_dashboard(self):
-        dialog = AdminAuthDialog(self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            role = getattr(dialog, 'authenticated_role', 'pengawas')
-            secret_token = os.getenv("SECRET_KEY", "sugity_super_secret_key_2026")
-            webbrowser.open(f"http://localhost:8000/admin/?role={role}&token={secret_token}")
+        # 👱 Ponytail: Otentikasi dialihkan ke antarmuka Web Admin (tanpa perantara parameter rahasia di URL)
+        webbrowser.open("http://localhost:8000/admin/")
 
     def trigger_mock_detect(self):
         with state.lock:

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from database_config import get_db, PartRule, User, InspectionLog, Transaction, CameraConfig, SisonConfig, GlobalSettings, hash_password
+from database_config import get_db, PartRule, User, InspectionLog, Transaction, CameraConfig, SisonConfig, GlobalSettings, hash_password, verify_password
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from collections import defaultdict
 import os
@@ -20,6 +20,22 @@ def verify_admin_auth(credentials: HTTPAuthorizationCredentials = Depends(admin_
         raise HTTPException(status_code=401, detail="Token Admin Tidak Valid / Ditolak")
 
 router = APIRouter(dependencies=[Depends(verify_admin_auth)])
+public_router = APIRouter()
+
+class LoginSchema(BaseModel):
+    username: str
+    password: str
+
+@public_router.post("/admin-login")
+def admin_login(creds: LoginSchema, db: Session = Depends(get_db)):
+    """👱 Ponytail: Endpoint otentikasi admin untuk antarmuka Web Dashboard."""
+    user = db.query(User).filter(User.username == creds.username).first()
+    if not user or not verify_password(creds.password, user.password):
+        raise HTTPException(status_code=401, detail="Username atau PIN salah!")
+    if not getattr(user, 'is_active', True) or user.role not in ["admin", "pengawas"]:
+        raise HTTPException(status_code=403, detail="Akun tidak berwenang mengakses Dashboard!")
+    secret = os.getenv("SECRET_KEY", "sugity_super_secret_key_2026")
+    return {"token": secret, "role": user.role, "username": user.username}
 
 # --- SCHEMAS ---
 class ComponentSchema(BaseModel):
