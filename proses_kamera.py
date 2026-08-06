@@ -13,12 +13,12 @@ import kirim_ke_sison as kirim_sison
 from database_config import SessionLocal, Transaction, InspectionLog
 from sqlalchemy.sql import func
 
-def log_inspeksi_db(id_trans: str, part_no: str, status_deteksi: str):
+def log_inspeksi_db(id_trans: str, part_no: str, status_deteksi: str, conf_score: float = 1.0):
     """Fungsi helper yang berjalan di background thread untuk mencatat history ke DB"""
     try:
         with SessionLocal() as db:
             # 1. Catat log inspeksi per item
-            log = InspectionLog(id_trans=id_trans, part_no=part_no, detection_status=status_deteksi, confidence_score=1.0)
+            log = InspectionLog(id_trans=id_trans, part_no=part_no, detection_status=status_deteksi, confidence_score=conf_score)
             db.add(log)
             
             # 2. Update qty actual di tabel transaksi
@@ -63,6 +63,20 @@ class SystemState:
         self.current_side: str = "F"      # "F" = Front, "R" = Rear
         self.flip_part_popup: bool = False # trigger instruksi "Balik Part" ke operator
         self.last_inspection_details: dict = {} # 🐎 ponytail: Menyimpan detail inspeksi terakhir
+        self.completed_time: float = 0.0
+
+    def reset_to_standby(self):
+        with self.lock:
+            self.status = "STANDBY"
+            self.id_trans = ""
+            self.p_no = ""
+            self.qty = 0
+            self.target_qty = 0
+            self.aturan_sisi = []
+            self.daftar_sisi = []
+            self.progress_sisi = 0
+            self.current_side = "F"
+            self.completed_time = 0.0
 
 state = SystemState()
 
@@ -161,23 +175,29 @@ class KameraProses:
                 pesan_ui = "Mode Demo: Tidak ada model custom. Gunakan tombol MOCK DETECT."
                 color_status = (255, 165, 0)  # Orange
 
+            # Filter rule sesuai sisi aktif
+            aturan_aktif = _get_rules_for_side(aturan_sisi, current_side)
+            has_rear = any(r.get("nama_komponen", "").lower().startswith("r-") for r in aturan_sisi)
+
             # CEK MOCK DETECT TRIGGER
             was_mock_triggered = False
             with state.lock:
                 if getattr(state, 'mock_detect_trigger', False):
                     was_mock_triggered = True
-                    for req in state.aturan_sisi:
-                        lbl = req.get("nama_komponen", "").lower()
-                        min_c = req.get("min_confidence", 0.70)
-                        label_counts[lbl] = 1
-                        label_max_conf[lbl] = min_c + 0.05
-                        detected_confidences.append(min_c + 0.05)
-                        print(f"[MOCK] Injeksi {lbl} dengan conf {min_c + 0.05:.2f}")
+                    target_rules = aturan_aktif if aturan_aktif else aturan_sisi
+                    if target_rules:
+                        for req in target_rules:
+                            lbl = req.get("nama_komponen", "").lower()
+                            label_counts[lbl] = 1
+                            label_max_conf[lbl] = 0.95
+                            detected_confidences.append(0.95)
+                            print(f"[MOCK] Injeksi {lbl} (sisi {current_side}) dengan conf 0.95")
+                    else:
+                        label_counts["mock_component"] = 1
+                        label_max_conf["mock_component"] = 0.95
+                        detected_confidences.append(0.95)
+                        print(f"[MOCK] Injeksi mock_component dengan conf 0.95")
                     state.mock_detect_trigger = False
-
-            # Filter rule sesuai sisi aktif
-            aturan_aktif = _get_rules_for_side(aturan_sisi, current_side)
-            has_rear = any(r.get("nama_komponen", "").lower().startswith("r-") for r in aturan_sisi)
 
             # Hitung Statistik Confidence & Total Label (per sisi aktif)
             required_labels = list(set(r.get("nama_komponen", "").lower() for r in aturan_aktif if r.get("nama_komponen")))
@@ -200,29 +220,27 @@ class KameraProses:
                 labels_complete = (detected_ratio >= target_coverage)
                 avg_conf_ok = (current_avg_conf >= target_avg_conf)
                 
-                # 🐎 ponytail: Update Pesan UI dengan warna merah jika belum menyentuh target
+                # 🐎 ponytail: Warna kuning disamakan persis antara OpenCV BGR (0, 255, 255) dan HTML (#ffff00 / Kuning Cerah Murni)
+                yellow_bgr = (0, 255, 255)
+                yellow_html = "#ffff00"
+                
                 lbl_color = "#ef4444" if not labels_complete else "#10b981"
                 avg_color = "#ef4444" if not avg_conf_ok else "#10b981"
                 
-                # BGR colors for OpenCV
                 lbl_color_bgr = (0, 0, 255) if not labels_complete else (0, 255, 0)
                 avg_color_bgr = (0, 0, 255) if not avg_conf_ok else (0, 255, 0)
                 
                 lbl_html = f"<span style='color:{lbl_color};'>{detected_required_count}/{total_required_count}</span>"
                 avg_html = f"<span style='color:{avg_color};'>{current_avg_conf*100:.0f}%/{target_avg_conf*100:.0f}%</span>"
                 
-                pesan_ui = f"Inspeksi: Labels {lbl_html} (Min {target_coverage*100:.0f}%) | AvgConf: {avg_html}"
-                
-                if labels_complete and avg_conf_ok and not min_conf_failed:
-                    color_status = (0, 255, 0)
-                else:
-                    color_status = (0, 255, 255)
+                pesan_ui = f"<span style='color:{yellow_html};'>Inspeksi: Labels</span> {lbl_html} <span style='color:{yellow_html};'>(Min {target_coverage*100:.0f}%) | AvgConf:</span> {avg_html}"
+                color_status = yellow_bgr
                     
                 # Setup array of text pieces for OpenCV multi-color rendering
                 cv2_text_parts = [
-                    (f"Inspeksi: Labels ", color_status),
+                    (f"Inspeksi: Labels ", yellow_bgr),
                     (f"{detected_required_count}/{total_required_count}", lbl_color_bgr),
-                    (f" (Min {target_coverage*100:.0f}%) | AvgConf: ", color_status),
+                    (f" (Min {target_coverage*100:.0f}%) | AvgConf: ", yellow_bgr),
                     (f"{current_avg_conf*100:.0f}%/{target_avg_conf*100:.0f}%", avg_color_bgr)
                 ]
 
@@ -252,10 +270,11 @@ class KameraProses:
                             state.qty -= 1
                             state.current_side = "F"  # reset ke Front untuk part berikutnya
                             state.part_ok_popup = True
-                            threading.Thread(target=log_inspeksi_db, args=(state.id_trans, state.p_no, "OK")).start()
+                            threading.Thread(target=log_inspeksi_db, args=(state.id_trans, state.p_no, "OK", current_avg_conf)).start()
                             
                             if state.qty <= 0:
                                 state.status = "COMPLETED"
+                                state.completed_time = time.time()
                                 threading.Thread(target=kirim_sison.SisonSender.send_callback, args=(state.id_trans, 1)).start()
                                 pesan_ui = "INSPEKSI SELESAI!"
                                 color_status = (0, 255, 0)
@@ -273,6 +292,7 @@ class KameraProses:
         elif status == "RUNNING" and qty <= 0 and target_qty > 0:
             with state.lock:
                 state.status = "COMPLETED"
+                state.completed_time = time.time()
             status = "COMPLETED"
             kirim_sison.SisonSender.send_callback(id_trans, 1)
             pesan_ui = "INSPEKSI SELESAI. MENGHUBUNGI SISON..."
@@ -294,6 +314,57 @@ class KameraProses:
             pesan_ui_cv2 = re.sub(r'<[^>]+>', '', pesan_ui)
             cv2.putText(frame, pesan_ui_cv2, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color_status, 2)
         
-        # 🐎 ponytail: Sisa Qty dan Sisi dipindahkan ke UI PyQt (BASIC_APP.py)
+        # 🐎 ponytail 4: Draw Center Crosshair / Positioning Guide Frame
+        fh, fw = frame.shape[:2]
+        cx, cy = fw // 2, fh // 2
+
+        # Draw subtle guide crosshair in center
+        cv2.line(frame, (cx - 20, cy), (cx + 20, cy), (100, 100, 100), 1)
+        cv2.line(frame, (cx, cy - 20), (cx, cy + 20), (100, 100, 100), 1)
         
+        # Draw subtle corner brackets (Guide Box) in center area
+        bw, bh = int(fw * 0.45), int(fh * 0.45)
+        x1, y1 = cx - bw // 2, cy - bh // 2
+        x2, y2 = cx + bw // 2, cy + bh // 2
+        
+        corner_len = 20
+        guide_color = (120, 120, 120)
+        # Top-left corner
+        cv2.line(frame, (x1, y1), (x1 + corner_len, y1), guide_color, 2)
+        cv2.line(frame, (x1, y1), (x1, y1 + corner_len), guide_color, 2)
+        # Top-right corner
+        cv2.line(frame, (x2, y1), (x2 - corner_len, y1), guide_color, 2)
+        cv2.line(frame, (x2, y1), (x2, y1 + corner_len), guide_color, 2)
+        # Bottom-left corner
+        cv2.line(frame, (x1, y2), (x1 + corner_len, y2), guide_color, 2)
+        cv2.line(frame, (x1, y2), (x1, y2 - corner_len), guide_color, 2)
+        # Bottom-right corner
+        cv2.line(frame, (x2, y2), (x2 - corner_len, y2), guide_color, 2)
+        cv2.line(frame, (x2, y2), (x2, y2 - corner_len), guide_color, 2)
+
+        # 🐎 ponytail 3: Live Checklist Overlay di pojok kanan atas video frame
+        if 'required_labels' in locals() and required_labels:
+            checklist_x = fw - 280
+            checklist_y = 40
+            
+            box_height = 25 + len(required_labels) * 22
+            cv2.rectangle(frame, (checklist_x - 10, checklist_y - 25), (fw - 15, checklist_y + box_height - 25), (15, 23, 42), -1)
+            cv2.rectangle(frame, (checklist_x - 10, checklist_y - 25), (fw - 15, checklist_y + box_height - 25), (0, 255, 255), 1)
+            
+            cv2.putText(frame, "CHECKLIST LABEL:", (checklist_x, checklist_y - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 255), 1)
+            
+            for idx, req_lbl in enumerate(required_labels):
+                lbl_y = checklist_y + 15 + (idx * 22)
+                has_found = label_counts.get(req_lbl, 0) > 0
+                c_score = label_max_conf.get(req_lbl, 0.0)
+                
+                if has_found:
+                    chk_text = f"[OK] {req_lbl.upper()} ({c_score*100:.0f}%)"
+                    chk_color = (0, 255, 0) # Green
+                else:
+                    chk_text = f"[  ] {req_lbl.upper()}"
+                    chk_color = (0, 0, 255) # Red
+                    
+                cv2.putText(frame, chk_text, (checklist_x, lbl_y), cv2.FONT_HERSHEY_SIMPLEX, 0.45, chk_color, 1)
+
         return frame, pesan_ui

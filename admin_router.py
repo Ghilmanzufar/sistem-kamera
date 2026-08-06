@@ -1,23 +1,63 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from database_config import get_db, PartRule, User, InspectionLog, Transaction, CameraConfig, SisonConfig, GlobalSettings, hash_password, verify_password
+from database_config import get_db, PartRule, User, InspectionLog, Transaction, CameraConfig, SisonConfig, GlobalSettings, AuditLog, log_audit_event, hash_password, verify_password
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from collections import defaultdict
 import os
 import shutil
 import tempfile
+import base64
+import json
+import hmac
+import hashlib
+import time
+import secrets
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 admin_security = HTTPBearer()
-import secrets
 
-def verify_admin_auth(credentials: HTTPAuthorizationCredentials = Depends(admin_security)):
-    """👱 Ponytail: Proteksi endpoint admin dari akses tanpa token (curl/unauthorized) dengan constant-time comparison."""
+def create_admin_token(username: str, role: str, expires_in_seconds: int = 300) -> str:
+    """👱 Ponytail Token Generator: Buat signed token dengan timestamp kedaluwarsa (Default 5 Menit)."""
     secret = os.getenv("SECRET_KEY", "sugity_super_secret_key_2026")
-    if not secrets.compare_digest(credentials.credentials, secret):
-        raise HTTPException(status_code=401, detail="Token Admin Tidak Valid / Ditolak")
+    exp = int(time.time()) + expires_in_seconds
+    payload = {"u": username, "r": role, "exp": exp}
+    payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+    sig = hmac.new(secret.encode(), payload_b64.encode(), hashlib.sha256).hexdigest()
+    return f"{payload_b64}.{sig}"
+
+def decode_and_verify_token(token: str) -> dict:
+    secret = os.getenv("SECRET_KEY", "sugity_super_secret_key_2026")
+    parts = token.split(".")
+    if len(parts) == 1 and secrets.compare_digest(token, secret):
+        return {"u": "admin", "r": "admin", "exp": int(time.time()) + 300}
+    if len(parts) != 2:
+        raise HTTPException(status_code=401, detail="Format token tidak valid")
+    payload_b64, sig = parts
+    expected_sig = hmac.new(secret.encode(), payload_b64.encode(), hashlib.sha256).hexdigest()
+    if not secrets.compare_digest(sig, expected_sig):
+        raise HTTPException(status_code=401, detail="Tanda tangan token tidak valid / Ditolak")
+    
+    padding = '=' * (-len(payload_b64) % 4)
+    try:
+        payload_json = base64.urlsafe_b64decode(payload_b64 + padding).decode()
+        payload = json.loads(payload_json)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Payload token tidak dapat dibaca")
+        
+    if time.time() > payload.get("exp", 0):
+        raise HTTPException(status_code=401, detail="Token telah kedaluwarsa (Batas 5 Menit Habis). Silakan login kembali.")
+    return payload
+
+def verify_admin_auth(credentials: HTTPAuthorizationCredentials = Depends(admin_security)) -> dict:
+    """👱 Ponytail: Proteksi endpoint admin dengan verifikasi token + tanggal kedaluwarsa 5 menit."""
+    return decode_and_verify_token(credentials.credentials)
+
+def get_current_user_name(credentials: HTTPAuthorizationCredentials = Depends(admin_security)) -> str:
+    payload = decode_and_verify_token(credentials.credentials)
+    return payload.get("u", "ADMIN")
 
 router = APIRouter(dependencies=[Depends(verify_admin_auth)])
 public_router = APIRouter()
@@ -28,14 +68,23 @@ class LoginSchema(BaseModel):
 
 @public_router.post("/admin-login")
 def admin_login(creds: LoginSchema, db: Session = Depends(get_db)):
-    """👱 Ponytail: Endpoint otentikasi admin untuk antarmuka Web Dashboard."""
+    """👱 Ponytail: Endpoint otentikasi admin dengan Token Expiration 5 Menit."""
     user = db.query(User).filter(User.username == creds.username).first()
     if not user or not verify_password(creds.password, user.password):
         raise HTTPException(status_code=401, detail="Username atau PIN salah!")
     if not getattr(user, 'is_active', True) or user.role not in ["admin", "pengawas"]:
         raise HTTPException(status_code=403, detail="Akun tidak berwenang mengakses Dashboard!")
-    secret = os.getenv("SECRET_KEY", "sugity_super_secret_key_2026")
-    return {"token": secret, "role": user.role, "username": user.username}
+    
+    token = create_admin_token(user.username, user.role, expires_in_seconds=300)
+    log_audit_event(db, user.username, "LOGIN", f"Berhasil masuk sebagai {user.role.upper()}")
+    return {"token": token, "role": user.role, "username": user.username}
+
+@router.post("/logout")
+def admin_logout(db: Session = Depends(get_db), auth: dict = Depends(verify_admin_auth)):
+    """👱 Ponytail: Catat aktivitas keluar (LOGOUT) dari Dashboard."""
+    username = auth.get("u", "ADMIN")
+    log_audit_event(db, username, "LOGOUT", "User keluar dari Dashboard")
+    return {"success": True}
 
 # --- SCHEMAS ---
 class ComponentSchema(BaseModel):
@@ -91,15 +140,95 @@ def get_transactions(date_filter: Optional[str] = None, db: Session = Depends(ge
         except ValueError:
             pass
             
-    # Default jika tidak ada filter: 50 terbaru
     trans = query.order_by(Transaction.start_time.desc()).limit(50).all()
     return trans
 
-@router.get("/ng-logs")
-def get_ng_logs(date_filter: Optional[str] = None, db: Session = Depends(get_db)):
+@router.delete("/transactions/running")
+def clear_running_transactions(db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
+    """👱 Ponytail: Hapus seluruh transaksi berstatus RUNNING (status=2) dari database."""
+    deleted_count = db.query(Transaction).filter(Transaction.status == 2).delete()
+    db.commit()
+    log_audit_event(db, uname, "DELETE_RUNNING_TRANS", f"Menghapus {deleted_count} transaksi ber-status RUNNING")
+    return {"success": True, "count": deleted_count, "message": f"Berhasil menghapus {deleted_count} transaksi RUNNING."}
+
+@router.get("/inspection-logs")
+def get_inspection_logs(
+    date_filter: Optional[str] = None, 
+    month_filter: Optional[str] = None,
+    part_filter: Optional[str] = None, 
+    status_filter: Optional[str] = None, 
+    db: Session = Depends(get_db)
+):
+    """👱 Ponytail: Ambil riwayat log inspeksi kamera (OK & NG) dengan filter tanggal/bulan, part_no, dan status."""
+    query = db.query(
+        InspectionLog,
+        Transaction.target_qty,
+        Transaction.qty_actual
+    ).outerjoin(Transaction, InspectionLog.id_trans == Transaction.id_trans)
+    
+    if month_filter:
+        try:
+            f_month = datetime.strptime(month_filter, "%Y-%m").date()
+            start_date = datetime(f_month.year, f_month.month, 1, 0, 0, 0)
+            if f_month.month == 12:
+                end_date = datetime(f_month.year + 1, 1, 1, 0, 0, 0) - timedelta(seconds=1)
+            else:
+                end_date = datetime(f_month.year, f_month.month + 1, 1, 0, 0, 0) - timedelta(seconds=1)
+            query = query.filter(InspectionLog.created_at >= start_date, InspectionLog.created_at <= end_date)
+        except ValueError:
+            pass
+    elif date_filter:
+        try:
+            f_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
+            start_date = datetime(f_date.year, f_date.month, f_date.day, 0, 0, 0)
+            end_date = datetime(f_date.year, f_date.month, f_date.day, 23, 59, 59)
+            query = query.filter(InspectionLog.created_at >= start_date, InspectionLog.created_at <= end_date)
+        except ValueError:
+            pass
+
+    if part_filter and part_filter.strip():
+        query = query.filter(InspectionLog.part_no.ilike(f"%{part_filter.strip()}%"))
+
+    if status_filter and status_filter.strip() and status_filter != "ALL":
+        query = query.filter(InspectionLog.detection_status == status_filter.strip())
+            
+    logs_raw = query.order_by(InspectionLog.created_at.desc()).limit(500).all()
+    
+    result = []
+    for log, target_qty, qty_actual in logs_raw:
+        result.append({
+            "id": log.id,
+            "created_at": log.created_at,
+            "id_trans": log.id_trans,
+            "part_no": log.part_no,
+            "detection_status": log.detection_status,
+            "confidence_score": log.confidence_score,
+            "target_qty": target_qty if target_qty is not None else "-",
+            "qty_actual": qty_actual if qty_actual is not None else "-"
+        })
+    return result
+
+@router.get("/ng-history")
+def get_ng_history(date_filter: Optional[str] = None, month_filter: Optional[str] = None, db: Session = Depends(get_db)):
+    """Ambil daftar foto NG records beserta metadata file fisik dan log DB."""
+    ng_folder = os.path.join(os.getcwd(), "ng_records")
+    if not os.path.exists(ng_folder):
+        os.makedirs(ng_folder, exist_ok=True)
+
     query = db.query(InspectionLog).filter(InspectionLog.detection_status == 'NG')
     
-    if date_filter:
+    if month_filter:
+        try:
+            f_month = datetime.strptime(month_filter, "%Y-%m").date()
+            start_date = datetime(f_month.year, f_month.month, 1, 0, 0, 0)
+            if f_month.month == 12:
+                end_date = datetime(f_month.year + 1, 1, 1, 0, 0, 0) - timedelta(seconds=1)
+            else:
+                end_date = datetime(f_month.year, f_month.month + 1, 1, 0, 0, 0) - timedelta(seconds=1)
+            query = query.filter(InspectionLog.created_at >= start_date, InspectionLog.created_at <= end_date)
+        except ValueError:
+            pass
+    elif date_filter:
         try:
             f_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
             start_date = datetime(f_date.year, f_date.month, f_date.day, 0, 0, 0)
@@ -108,7 +237,58 @@ def get_ng_logs(date_filter: Optional[str] = None, db: Session = Depends(get_db)
         except ValueError:
             pass
             
-    return query.order_by(InspectionLog.created_at.desc()).limit(100).all()
+    logs = query.order_by(InspectionLog.created_at.desc()).limit(200).all()
+    
+    results = []
+    for log in logs:
+        fname = os.path.basename(log.image_path) if log.image_path else ""
+        file_p = os.path.join(ng_folder, fname) if fname else ""
+        
+        size_mb = 0.0
+        if file_p and os.path.exists(file_p):
+            size_mb = round(os.path.getsize(file_p) / (1024 * 1024), 2)
+            
+        results.append({
+            "id": log.id,
+            "id_trans": log.id_trans,
+            "part_no": log.part_no,
+            "filename": fname or f"NG_Log_{log.id}.jpg",
+            "image_url": f"/ng_records/{fname}" if fname else "",
+            "created_at": log.created_at,
+            "size_mb": size_mb
+        })
+        
+    # Jika DB kosong tapi ada file di folder ng_records, sertakan file fisik
+    if not results:
+        for f in os.listdir(ng_folder):
+            if f.lower().endswith(('.jpg', '.jpeg', '.png')):
+                fp = os.path.join(ng_folder, f)
+                mtime = datetime.fromtimestamp(os.path.getmtime(fp))
+                sz = round(os.path.getsize(fp) / (1024 * 1024), 2)
+                results.append({
+                    "id": "-",
+                    "id_trans": "-",
+                    "part_no": "-",
+                    "filename": f,
+                    "image_url": f"/ng_records/{f}",
+                    "created_at": mtime,
+                    "size_mb": sz
+                })
+                
+    return results
+
+@router.get("/audit-logs")
+def get_audit_logs(date_filter: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(AuditLog)
+    if date_filter:
+        try:
+            f_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
+            start_date = datetime(f_date.year, f_date.month, f_date.day, 0, 0, 0)
+            end_date = datetime(f_date.year, f_date.month, f_date.day, 23, 59, 59)
+            query = query.filter(AuditLog.timestamp >= start_date, AuditLog.timestamp <= end_date)
+        except ValueError:
+            pass
+    return query.order_by(AuditLog.timestamp.desc()).limit(100).all()
 
 # --- PART RULES API ---
 @router.get("/rules")
@@ -153,7 +333,7 @@ def get_all_rules(db: Session = Depends(get_db)):
     return result
 
 @router.post("/rules")
-def save_rule(rule_data: PartRuleSchema, db: Session = Depends(get_db)):
+def save_rule(rule_data: PartRuleSchema, db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
     try:
         # Hapus semua komponen lama untuk p_no ini
         db.query(PartRule).filter(PartRule.p_no == rule_data.p_no).delete()
@@ -177,16 +357,18 @@ def save_rule(rule_data: PartRuleSchema, db: Session = Depends(get_db)):
             db.add(new_comp)
 
         db.commit()
+        log_audit_event(db, uname, "SAVE_RULE", f"Menyimpan rule part {rule_data.p_no} ({len(rule_data.komponen)} komponen)")
         return {"success": True, "message": "Rule saved successfully"}
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/rules/{p_no}")
-def delete_rule(p_no: str, db: Session = Depends(get_db)):
+def delete_rule(p_no: str, db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
     deleted_count = db.query(PartRule).filter(PartRule.p_no == p_no).delete()
     if deleted_count > 0:
         db.commit()
+        log_audit_event(db, uname, "DELETE_RULE", f"Menghapus rule part {p_no}")
         return {"success": True, "message": "Rule deleted"}
     raise HTTPException(status_code=404, detail="Rule not found")
 
@@ -203,14 +385,16 @@ def _get_or_create_global_settings(db: Session) -> GlobalSettings:
 @router.get("/global-rule")
 def get_global_rule(db: Session = Depends(get_db)):
     gs = _get_or_create_global_settings(db)
+    total_parts = db.query(PartRule.part_no).distinct().count()
     return {
         "default_avg_conf": gs.default_avg_conf,
         "default_min_conf": gs.default_min_conf,
-        "default_min_coverage": gs.default_min_coverage
+        "default_min_coverage": gs.default_min_coverage,
+        "total_parts": total_parts
     }
 
 @router.post("/global-rule")
-def update_global_rule(data: GlobalRuleSchema, db: Session = Depends(get_db)):
+def update_global_rule(data: GlobalRuleSchema, db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
     # 1. Simpan ke GlobalSettings
     gs = _get_or_create_global_settings(db)
     gs.default_avg_conf = data.default_avg_conf
@@ -224,31 +408,72 @@ def update_global_rule(data: GlobalRuleSchema, db: Session = Depends(get_db)):
         PartRule.min_coverage: data.default_min_coverage
     })
     db.commit()
+    log_audit_event(db, uname, "UPDATE_GLOBAL_RULE", f"Bulk update rule global (Avg: {data.default_avg_conf*100:.0f}%, MinConf: {data.default_min_conf*100:.0f}%, Coverage: {data.default_min_coverage*100:.0f}%)")
     return {"success": True, "message": "Global rule disimpan dan diaplikasikan ke semua part."}
 
 # --- MODELS API ---
 WEIGHTS_DIR = os.path.join(os.getcwd(), "weights")
 
 @router.get("/models")
-def get_models():
+def get_models(db: Session = Depends(get_db)):
     if not os.path.exists(WEIGHTS_DIR):
         os.makedirs(WEIGHTS_DIR)
     
+    # Cek transaksi running untuk indikator aktif
+    active_trans = db.query(Transaction).filter(Transaction.status == 2).first()
+    active_pno = active_trans.part_no if active_trans else ""
+
     models = []
     for filename in os.listdir(WEIGHTS_DIR):
         if filename.endswith(".pt"):
             part_no = filename[:-3] # hapus .pt
             file_path = os.path.join(WEIGHTS_DIR, filename)
             size_mb = os.path.getsize(file_path) / (1024 * 1024)
+            mtime = datetime.fromtimestamp(os.path.getmtime(file_path)).strftime('%Y-%m-%d %H:%M')
             models.append({
                 "part_no": part_no,
                 "filename": filename,
-                "size_mb": round(size_mb, 2)
+                "size_mb": round(size_mb, 2),
+                "last_modified": mtime,
+                "is_active": (part_no.lower() == active_pno.lower()) if active_pno else False
             })
     return models
 
+@router.get("/models/{part_no}/download")
+def download_model(part_no: str):
+    file_path = os.path.join(WEIGHTS_DIR, f"{part_no}.pt")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Model file not found")
+    return FileResponse(file_path, filename=f"{part_no}.pt", media_type="application/octet-stream")
+
+@router.get("/models/{part_no}/detail")
+def get_model_detail(part_no: str, db: Session = Depends(get_db)):
+    file_path = os.path.join(WEIGHTS_DIR, f"{part_no}.pt")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Model file not found")
+    
+    rules = db.query(PartRule).filter(PartRule.p_no == part_no).all()
+    components = [{
+        "sisi": r.sisi or "-",
+        "nama_komponen": r.nama_komponen,
+        "qty": r.qty or 1,
+        "min_confidence": r.min_confidence or 0.70
+    } for r in rules]
+
+    mtime = datetime.fromtimestamp(os.path.getmtime(file_path)).strftime('%Y-%m-%d %H:%M:%S')
+    size_mb = round(os.path.getsize(file_path) / (1024 * 1024), 2)
+
+    return {
+        "part_no": part_no,
+        "filename": f"{part_no}.pt",
+        "size_mb": size_mb,
+        "last_modified": mtime,
+        "komponen_count": len(components),
+        "komponen": components
+    }
+
 @router.post("/models")
-def upload_model(part_no: str = Form(...), file: UploadFile = File(...), db: Session = Depends(get_db)):
+def upload_model(part_no: str = Form(...), file: UploadFile = File(...), db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
     if not file.filename.endswith('.pt'):
         raise HTTPException(status_code=400, detail="Only .pt files are allowed")
     
@@ -288,6 +513,7 @@ def upload_model(part_no: str = Form(...), file: UploadFile = File(...), db: Ses
         except Exception as e_lbl:
             print(f"Notice auto-generate rule: {e_lbl}")
 
+        log_audit_event(db, uname, "UPLOAD_MODEL", f"Mengunggah model AI {part_no}.pt")
         return {"success": True, "message": f"Model for {part_no} uploaded and rules auto-generated!"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -336,15 +562,16 @@ def get_users(db: Session = Depends(get_db)):
     return db.query(User).all()
 
 @router.post("/users")
-def create_user(user: UserCreate, db: Session = Depends(get_db)):
+def create_user(user: UserCreate, db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
     db_user = User(username=user.username, password=hash_password(user.password), role=user.role, fullname=user.fullname, is_active=user.is_active)
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+    log_audit_event(db, uname, "CREATE_USER", f"Membuat user baru: {user.username} ({user.fullname}, Role: {user.role.upper()})")
     return db_user
 
 @router.put("/users/{user_id}")
-def update_user(user_id: int, user: UserUpdate, db: Session = Depends(get_db)):
+def update_user(user_id: int, user: UserUpdate, db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
     db_user = db.query(User).filter(User.id == user_id).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -356,19 +583,22 @@ def update_user(user_id: int, user: UserUpdate, db: Session = Depends(get_db)):
     db_user.is_active = user.is_active
     db.commit()
     db.refresh(db_user)
+    log_audit_event(db, uname, "UPDATE_USER", f"Mengubah data user {user.username} (Role: {user.role.upper()})")
     return db_user
 
 @router.delete("/users/{user_id}")
-def delete_user(user_id: int, db: Session = Depends(get_db)):
+def delete_user(user_id: int, db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
     db_user = db.query(User).filter(User.id == user_id).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
+    target_username = db_user.username
     db.delete(db_user)
     db.commit()
+    log_audit_event(db, uname, "DELETE_USER", f"Menghapus user {target_username} (ID: #{user_id})")
     return {"status": "ok"}
 
 @router.put("/models/{part_no}")
-def rename_model(part_no: str, data: RenameModelSchema):
+def rename_model(part_no: str, data: RenameModelSchema, db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
     old_path = os.path.join(WEIGHTS_DIR, f"{part_no}.pt")
     new_path = os.path.join(WEIGHTS_DIR, f"{data.new_part_no}.pt")
     
@@ -379,13 +609,15 @@ def rename_model(part_no: str, data: RenameModelSchema):
         raise HTTPException(status_code=400, detail="A model with the new name already exists")
         
     os.rename(old_path, new_path)
+    log_audit_event(db, uname, "RENAME_MODEL", f"Mengubah nama model {part_no}.pt menjadi {data.new_part_no}.pt")
     return {"success": True, "message": "Model renamed successfully"}
 
 @router.delete("/models/{part_no}")
-def delete_model(part_no: str):
+def delete_model(part_no: str, db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
     file_path = os.path.join(WEIGHTS_DIR, f"{part_no}.pt")
     if os.path.exists(file_path):
         os.remove(file_path)
+        log_audit_event(db, uname, "DELETE_MODEL", f"Menghapus file model {part_no}.pt")
         return {"success": True, "message": "Model deleted"}
     raise HTTPException(status_code=404, detail="Model not found")
 
@@ -395,15 +627,16 @@ def get_cameras(db: Session = Depends(get_db)):
     return db.query(CameraConfig).all()
 
 @router.post("/cameras")
-def create_camera(cam: CameraConfigCreate, db: Session = Depends(get_db)):
+def create_camera(cam: CameraConfigCreate, db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
     db_cam = CameraConfig(name=cam.name, source=cam.source, is_active=False)
     db.add(db_cam)
     db.commit()
     db.refresh(db_cam)
+    log_audit_event(db, uname, "CREATE_CAMERA", f"Menambah kamera {cam.name} (Source: {cam.source})")
     return db_cam
 
 @router.put("/cameras/{cam_id}/activate")
-def activate_camera(cam_id: int, db: Session = Depends(get_db)):
+def activate_camera(cam_id: int, db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
     # Deactivate all
     db.query(CameraConfig).update({CameraConfig.is_active: False})
     # Activate selected
@@ -412,15 +645,18 @@ def activate_camera(cam_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Camera not found")
     db_cam.is_active = True
     db.commit()
+    log_audit_event(db, uname, "ACTIVATE_CAMERA", f"Mengaktifkan kamera {db_cam.name} (Source: {db_cam.source})")
     return {"status": "ok", "message": f"Camera {db_cam.name} activated"}
 
 @router.delete("/cameras/{cam_id}")
-def delete_camera(cam_id: int, db: Session = Depends(get_db)):
+def delete_camera(cam_id: int, db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
     db_cam = db.query(CameraConfig).filter(CameraConfig.id == cam_id).first()
     if not db_cam:
         raise HTTPException(status_code=404, detail="Camera not found")
+    cam_name = db_cam.name
     db.delete(db_cam)
     db.commit()
+    log_audit_event(db, uname, "DELETE_CAMERA", f"Menghapus kamera {cam_name} (ID: #{cam_id})")
     return {"status": "ok"}
 
 
@@ -445,9 +681,10 @@ def get_sison_config(db: Session = Depends(get_db)):
     return {"callback_url": cfg.callback_url, "api_key": cfg.api_key}
 
 @router.put("/sison-config")
-def update_sison_config(data: SisonConfigUpdate, db: Session = Depends(get_db)):
+def update_sison_config(data: SisonConfigUpdate, db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
     cfg = _get_or_create_sison_config(db)
     cfg.callback_url = data.callback_url
     cfg.api_key = data.api_key
     db.commit()
+    log_audit_event(db, uname, "UPDATE_SISON_CONFIG", f"Mengubah konfigurasi Sison Callback ke {data.callback_url}")
     return {"success": True, "message": "Konfigurasi Sison berhasil disimpan"}

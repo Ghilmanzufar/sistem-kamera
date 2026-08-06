@@ -7,6 +7,9 @@ import logging
 import warnings
 import webbrowser
 
+from dotenv import load_dotenv
+load_dotenv()  # 👱 Ponytail: Pastikan SECRET_KEY dari .env terbaca sebelum FastAPI/router init
+
 # 👱 Ponytail: Bungkam log MSMF/OpenCV via environment variable agar terminal tenang tanpa merusak decoding video
 os.environ["OPENCV_LOG_LEVEL"] = "FATAL"
 os.environ["OPENCV_VIDEOIO_DEBUG"] = "0"
@@ -19,6 +22,7 @@ import uvicorn
 import requests
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget, QApplication, QMessageBox, QPushButton, QHBoxLayout, QSizePolicy, QInputDialog, QDialog, QLineEdit, QFrame
@@ -49,6 +53,49 @@ def authenticate_and_get_role(username: str, pin: str, allowed_roles: list) -> s
     finally:
         db.close()
 
+def cleanup_old_ng_records(days: int = 30):
+    """👱 Ponytail Background Task: Otomatis hapus file foto NG yang berumur > 30 hari untuk menghemat disk."""
+    folder = "ng_records"
+    if not os.path.exists(folder):
+        return
+    now = time.time()
+    cutoff = now - (days * 86400)
+    deleted_count = 0
+    try:
+        for filename in os.listdir(folder):
+            file_path = os.path.join(folder, filename)
+            if os.path.isfile(file_path) and filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+                if os.path.getmtime(file_path) < cutoff:
+                    os.remove(file_path)
+                    deleted_count += 1
+        if deleted_count > 0:
+            print(f"[CLEANUP] Otomatis menghapus {deleted_count} foto NG lama (> {days} hari).")
+    except Exception as e:
+        print(f"[CLEANUP WARN] Gagal menjalankan pembersihan foto NG: {e}")
+
+def start_periodic_cleanup():
+    def loop():
+        while True:
+            cleanup_old_ng_records(days=30)
+            time.sleep(86400)  # Cek setiap 24 jam
+    t = threading.Thread(target=loop, daemon=True)
+    t.start()
+
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+class SPAStaticFiles(StaticFiles):
+    """👱 Ponytail SPA Handler: Otomatis alihkan 404 ke index.html agar React Router tidak crash saat F5 / Refresh."""
+    async def get_response(self, path: str, scope):
+        try:
+            response = await super().get_response(path, scope)
+            if response.status_code == 404:
+                return await super().get_response("index.html", scope)
+            return response
+        except StarletteHTTPException as ex:
+            if ex.status_code == 404:
+                return await super().get_response("index.html", scope)
+            raise ex
+
 # Setup FastAPI App
 app_fastapi = FastAPI(title="Sistem Kamera API")
 app_fastapi.include_router(camera_router, prefix="/api")
@@ -57,7 +104,7 @@ app_fastapi.include_router(admin_router.public_router, prefix="/api")
 # --- CUSTOM WEB ADMIN CONFIGURATION ---
 
 app_fastapi.include_router(admin_router.router, prefix="/api/admin")
-app_fastapi.mount("/admin", StaticFiles(directory="web_admin", html=True), name="admin")
+app_fastapi.mount("/admin", SPAStaticFiles(directory="web_admin/dist", html=True), name="admin")
 app_fastapi.mount("/ng_records", StaticFiles(directory="ng_records"), name="ng_records")
 # ----------------------------------------
 
@@ -170,9 +217,10 @@ class YoloApp(QWidget):
         self.timer.timeout.connect(self.update_frame)
         self.timer.start(30) # Refresh 30 FPS
         
-        # Start FastAPI
+        # Start FastAPI & Auto Cleanup
         self.api_thread = threading.Thread(target=run_fastapi, daemon=True)
         self.api_thread.start()
+        start_periodic_cleanup()
 
     def _open_camera(self):
         # 👱 Ponytail: Default OpenCV adalah 640x480 (VGA 4:3) yang terlihat kecil/kotak di layar monitor. 
@@ -196,25 +244,25 @@ class YoloApp(QWidget):
         self.hud_frame = QFrame(self)
         self.hud_frame.setObjectName("hud")
         self.hud_frame.setStyleSheet("#hud { background-color: #0f172a; border: none; border-radius: 10px; }")
-        self.hud_frame.setFixedHeight(100)
+        self.hud_frame.setFixedHeight(115)
         hud_layout = QHBoxLayout(self.hud_frame)
-        hud_layout.setContentsMargins(20, 10, 20, 10)
+        hud_layout.setContentsMargins(20, 8, 20, 8)
 
-        self.part_name = QLabel("<span style='color:#64748b; font-size:16px;'>PART NUMBER</span><br/><span style='color:#f8fafc; font-size:28px; font-weight:bold;'>MENUNGGU SISON...</span>", self)
+        self.part_name = QLabel("<span style='color:#ffff00; font-size:14px; font-weight:bold;'>PART NUMBER</span><br/><span style='color:#f8fafc; font-size:24px; font-weight:bold;'>MENUNGGU SISON...</span>", self)
         self.part_name.setStyleSheet("border: none; background: transparent;")
         self.part_name.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         
         status_container = QWidget(self)
         status_layout = QVBoxLayout(status_container)
         status_layout.setContentsMargins(0,0,0,0)
-        status_layout.setSpacing(2)
+        status_layout.setSpacing(0)
         
-        self.status_label = QLabel("<span style='color:#94a3b8; font-size:16px;'>STATUS KAMERA</span><br/><span style='color:#cbd5e1; font-size:28px; font-weight:bold;'>STANDBY</span>", self)
+        self.status_label = QLabel("<span style='color:#94a3b8; font-size:13px;'>STATUS KAMERA</span><br/><span style='color:#cbd5e1; font-size:22px; font-weight:bold;'>STANDBY</span>", self)
         self.status_label.setStyleSheet("border: none; background: transparent;")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         # 🐎 ponytail: info_label untuk memindahkan teks qty & sisi dari overlay OpenCV
-        self.info_label = QLabel("<span style='color:#cbd5e1; font-size:14px; font-weight:bold;'>QTY: - | SISI: -</span>", self)
+        self.info_label = QLabel("<span style='color:#cbd5e1; font-size:13px; font-weight:bold;'>QTY: - | SISI: -</span>", self)
         self.info_label.setStyleSheet("border: none; background: transparent;")
         self.info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
@@ -314,6 +362,11 @@ class YoloApp(QWidget):
 
     def trigger_mock_detect(self):
         with state.lock:
+            curr_status = state.status
+        if curr_status not in ["RUNNING", "OK"]:
+            QMessageBox.information(self, "Info", "Sistem dalam posisi STANDBY.\nSilakan klik '🚀 DEMO SISON' terlebih dahulu untuk memulai simulasi transaksi!")
+            return
+        with state.lock:
             state.mock_detect_trigger = True
 
     def trigger_mock_ng(self):
@@ -330,11 +383,11 @@ class YoloApp(QWidget):
 
         qty_selesai = target_qty - sisa_qty
         
-        # Update Part Name (Rich Text)
+        # Update Part Name (Rich Text) - Yellow #ffff00 for Part No and Green #22c55e for Target/Selesai
         if p_no:
-            self.part_name.setText(f"<span style='color:#eab308; font-size:28px; font-weight:bold;'>{p_no}</span><br/><span style='color:#38bdf8; font-size:18px;'>Target: {target_qty} PCS | Selesai: {qty_selesai} PCS</span>")
+            self.part_name.setText(f"<span style='color:#ffff00; font-size:28px; font-weight:bold;'>{p_no}</span><br/><span style='color:#22c55e; font-size:18px; font-weight:bold;'>Target: {target_qty} PCS | Selesai: {qty_selesai} PCS</span>")
         else:
-            self.part_name.setText("<span style='color:#64748b; font-size:16px;'>PART NUMBER</span><br/><span style='color:#f8fafc; font-size:28px; font-weight:bold;'>MENUNGGU SISON...</span>")
+            self.part_name.setText("<span style='color:#ffff00; font-size:16px; font-weight:bold;'>PART NUMBER</span><br/><span style='color:#f8fafc; font-size:28px; font-weight:bold;'>MENUNGGU SISON...</span>")
 
         # Update Status Label (Rich Text & Colors)
         status_color = "#cbd5e1" # Default Gray
@@ -348,6 +401,9 @@ class YoloApp(QWidget):
             status_color = "#38bdf8" # Sky Blue
             status_text = "SELESAI (OK)"
             self.hud_frame.setStyleSheet("#hud { background-color: #0f172a; border: none; border-radius: 10px; }")
+            # 👱 Ponytail: Auto reset ke STANDBY setelah 5 detik transaksi selesai
+            if state.completed_time > 0 and (time.time() - state.completed_time) >= 5.0:
+                state.reset_to_standby()
         elif current_status == "NG":
             status_color = "#ef4444" # Red
             status_text = "NG TERDETEKSI"
@@ -357,7 +413,7 @@ class YoloApp(QWidget):
         else:
             self.hud_frame.setStyleSheet("#hud { background-color: #0f172a; border: none; border-radius: 10px; }")
             
-        self.status_label.setText(f"<span style='color:#94a3b8; font-size:16px;'>STATUS KAMERA</span><br/><span style='color:{status_color}; font-size:28px; font-weight:bold;'>{status_text}</span>")
+        self.status_label.setText(f"<span style='color:#94a3b8; font-size:13px;'>STATUS KAMERA</span><br/><span style='color:{status_color}; font-size:22px; font-weight:bold;'>{status_text}</span>")
 
         # 2. Lazy & Hot-Reload Model (Ganti model jika p_no berubah ATAU file .pt diperbarui di Web Admin)
         model_path = os.path.join(os.getcwd(), "weights", f"{p_no}.pt")
@@ -386,11 +442,14 @@ class YoloApp(QWidget):
         
         # 5. Render ke PyQt
         # Menjaga judul STATUS KAMERA agar tidak hilang saat ditimpa pesan_ui
-        self.status_label.setText(f"<span style='color:#94a3b8; font-size:16px;'>STATUS KAMERA</span><br/><span style='color:{status_color}; font-size:20px; font-weight:bold;'>{pesan_ui}</span>")
+        self.status_label.setText(f"<span style='color:#94a3b8; font-size:13px;'>STATUS KAMERA</span><br/><span style='color:{status_color}; font-size:18px; font-weight:bold;'>{pesan_ui}</span>")
         
         # 🐎 ponytail: Update info QTY dan SISI (dipindah dari kamera)
-        side_text = "FRONT" if state.current_side == "F" else "REAR"
-        self.info_label.setText(f"<span style='color:#10b981; font-size:16px; font-weight:bold;'>SISA QTY: {sisa_qty}/{target_qty}  |  SISI: {side_text}</span>")
+        if p_no and current_status != "STANDBY":
+            side_text = "FRONT" if state.current_side == "F" else "REAR"
+            self.info_label.setText(f"<span style='color:#10b981; font-size:13px; font-weight:bold;'>SISA QTY: {sisa_qty}/{target_qty}  |  SISI: {side_text}</span>")
+        else:
+            self.info_label.setText("<span style='color:#cbd5e1; font-size:13px; font-weight:bold;'>QTY: - | SISI: -</span>")
         rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
         # 👱 Ponytail: Mencegah PyQt memory corruption dengan mendefinisikan bytesPerLine
@@ -424,7 +483,7 @@ class YoloApp(QWidget):
             if should_popup_flip:
                 title = "BALIK PART"
                 header_msg = "🔄 SISI DEPAN OK!"
-                sub_msg = "Balik Part ke SISI BELAKANG, lalu klik MOCK DETECT."
+                sub_msg = "Balik Part ke SISI BELAKANG."
             else:
                 title = "INSPEKSI OK"
                 header_msg = "✅ PART BERHASIL TERDETEKSI!"
@@ -434,10 +493,10 @@ class YoloApp(QWidget):
             msg_box.setWindowTitle(title)
             msg_box.setIcon(QMessageBox.Icon.Information)
             
-            # 🐎 ponytail: Gunakan HTML text agar format lebih rapi
+            # 🐎 ponytail: Gunakan HTML text agar format lebih rapi (Teks instruksi putih terang)
             html_text = f"""
             <h3 style='margin-bottom: 5px;'>{header_msg}</h3>
-            <p style='color: #555;'>{sub_msg}</p>
+            <p style='color: #ffffff; font-size: 15px; font-weight: bold;'>{sub_msg}</p>
             <hr>
             <table cellpadding='4'>
                 <tr>

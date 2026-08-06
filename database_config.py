@@ -120,6 +120,23 @@ class SisonConfig(Base):
     callback_url = Column(String, default="http://localhost:3000/api/kamera/callback")
     api_key = Column(String, default="kamera-secret-key")  # ponytail: upgrade ke random UUID jika perlu
 
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    timestamp = Column(DateTime, server_default=func.now())
+    username = Column(String, index=True, default="SYSTEM")
+    action = Column(String, nullable=False)
+    details = Column(String, nullable=True)
+
+def log_audit_event(db, username: str, action: str, details: str = ""):
+    """Helper untuk mencatat aktivitas sistem / user ke database audit_logs."""
+    try:
+        log = AuditLog(username=username or "SYSTEM", action=action, details=details)
+        db.add(log)
+        db.commit()
+    except Exception as e:
+        print(f"[AUDIT LOG ERROR] Gagal mencatat log '{action}': {e}")
+
 # Buat semua tabel jika belum ada
 Base.metadata.create_all(bind=engine)
 
