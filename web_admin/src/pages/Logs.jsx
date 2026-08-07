@@ -28,6 +28,13 @@ export default function Logs() {
 
   const headers = ["# ID", "Waktu", "Username", "Aksi", "Detail Aktivitas"];
 
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    const cleanStr = typeof dateStr === 'string' ? dateStr.replace(' ', 'T') : dateStr;
+    const d = new Date(cleanStr);
+    return isNaN(d.getTime()) ? String(dateStr) : d.toLocaleString('id-ID');
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -51,7 +58,7 @@ export default function Logs() {
             <tr key={item.id} className="hover:bg-white/5 transition-colors">
               <td className="p-4 text-xs font-mono text-slate-400">#{item.id}</td>
               <td className="p-4 text-xs text-slate-300 whitespace-nowrap">
-                {item.created_at ? new Date(item.created_at).toLocaleString() : '-'}
+                {formatDate(item.timestamp || item.created_at)}
               </td>
               <td className="p-4 font-bold text-white text-xs flex items-center gap-2">
                 <FileText className="w-3.5 h-3.5 text-blue-400" />

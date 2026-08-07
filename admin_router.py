@@ -134,6 +134,11 @@ class CameraConfigCreate(BaseModel):
     name: str
     source: str
 
+class CameraConfigUpdate(BaseModel):
+    name: str
+    source: str
+
+
 # --- MONITORING API ---
 @router.get("/transactions")
 def get_transactions(date_filter: Optional[str] = None, db: Session = Depends(get_db)):
@@ -228,7 +233,19 @@ def get_audit_logs(date_filter: Optional[str] = None, db: Session = Depends(get_
             query = query.filter(AuditLog.timestamp >= start_date, AuditLog.timestamp <= end_date)
         except ValueError:
             pass
-    return query.order_by(AuditLog.timestamp.desc()).limit(100).all()
+    raw_logs = query.order_by(AuditLog.timestamp.desc()).limit(100).all()
+    result = []
+    for log in raw_logs:
+        ts_str = log.timestamp.isoformat() if log.timestamp else datetime.now().isoformat()
+        result.append({
+            "id": log.id,
+            "timestamp": ts_str,
+            "created_at": ts_str,
+            "username": log.username or "SYSTEM",
+            "action": log.action,
+            "details": log.details or ""
+        })
+    return result
 
 # --- PART RULES API ---
 @router.get("/rules")
@@ -562,9 +579,50 @@ def delete_model(part_no: str, db: Session = Depends(get_db), uname: str = Depen
     raise HTTPException(status_code=404, detail="Model not found")
 
 # --- CAMERA API ---
+import subprocess
+
+def _scan_hardware_cameras(db: Session):
+    """Pindai kamera hardware USB terhubung ke komputer dan sinkronkan dengan Database."""
+    pnp_names = []
+    try:
+        cmd = 'powershell -NoProfile -Command "Get-PnpDevice -Class Camera, Image -Status OK | Select-Object -ExpandProperty FriendlyName"'
+        res = subprocess.check_output(cmd, shell=True, timeout=5).decode(errors='ignore')
+        pnp_names = [line.strip() for line in res.splitlines() if line.strip()]
+    except Exception:
+        pass
+
+    existing_cams = db.query(CameraConfig).all()
+    existing_sources = {c.source for c in existing_cams}
+    
+    new_added = False
+    sources_to_check = pnp_names if pnp_names else ["Kamera USB Utama (Index 0)"]
+    for idx, cam_name in enumerate(sources_to_check):
+        src_str = str(idx)
+        if src_str not in existing_sources:
+            is_first = (db.query(CameraConfig).count() == 0)
+            db_cam = CameraConfig(name=cam_name, source=src_str, is_active=is_first)
+            db.add(db_cam)
+            existing_sources.add(src_str)
+            new_added = True
+            
+    if new_added:
+        db.commit()
+        
+    return db.query(CameraConfig).all()
+
 @router.get("/cameras")
 def get_cameras(db: Session = Depends(get_db)):
-    return db.query(CameraConfig).all()
+    cams = db.query(CameraConfig).all()
+    if not cams:
+        cams = _scan_hardware_cameras(db)
+    return cams
+
+@router.post("/cameras/scan")
+def scan_cameras(db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
+    cams = _scan_hardware_cameras(db)
+    log_audit_event(db, uname, "SCAN_CAMERAS", f"Memindai ulang kamera hardware. Total {len(cams)} kamera terdaftar.")
+    return cams
+
 
 @router.post("/cameras")
 def create_camera(cam: CameraConfigCreate, db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
@@ -573,6 +631,19 @@ def create_camera(cam: CameraConfigCreate, db: Session = Depends(get_db), uname:
     db.commit()
     db.refresh(db_cam)
     log_audit_event(db, uname, "CREATE_CAMERA", f"Menambah kamera {cam.name} (Source: {cam.source})")
+    return db_cam
+
+@router.put("/cameras/{cam_id}")
+def update_camera(cam_id: int, cam: CameraConfigUpdate, db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
+    db_cam = db.query(CameraConfig).filter(CameraConfig.id == cam_id).first()
+    if not db_cam:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    
+    db_cam.name = cam.name
+    db_cam.source = cam.source
+    db.commit()
+    db.refresh(db_cam)
+    log_audit_event(db, uname, "UPDATE_CAMERA", f"Mengubah kamera ID #{cam_id} menjadi {cam.name} (Source: {cam.source})")
     return db_cam
 
 @router.put("/cameras/{cam_id}/activate")
@@ -593,11 +664,22 @@ def delete_camera(cam_id: int, db: Session = Depends(get_db), uname: str = Depen
     db_cam = db.query(CameraConfig).filter(CameraConfig.id == cam_id).first()
     if not db_cam:
         raise HTTPException(status_code=404, detail="Camera not found")
+    
     cam_name = db_cam.name
+    was_active = db_cam.is_active
     db.delete(db_cam)
     db.commit()
+
+    # Jika yang dihapus adalah kamera aktif, tunjuk kamera lain jika ada
+    if was_active:
+        remaining_cam = db.query(CameraConfig).first()
+        if remaining_cam:
+            remaining_cam.is_active = True
+            db.commit()
+            log_audit_event(db, uname, "AUTO_ACTIVATE_CAMERA", f"Otomatis mengaktifkan {remaining_cam.name} setelah kamera aktif dihapus")
+
     log_audit_event(db, uname, "DELETE_CAMERA", f"Menghapus kamera {cam_name} (ID: #{cam_id})")
-    return {"status": "ok"}
+    return {"status": "ok", "was_active": was_active}
 
 
 # --- SISON CONFIG API ---

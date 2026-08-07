@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, ForeignKey
 from sqlalchemy.types import JSON
@@ -123,7 +124,7 @@ class SisonConfig(Base):
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    timestamp = Column(DateTime, server_default=func.now())
+    timestamp = Column(DateTime, default=datetime.now, server_default=func.now())
     username = Column(String, index=True, default="SYSTEM")
     action = Column(String, nullable=False)
     details = Column(String, nullable=True)
@@ -131,7 +132,7 @@ class AuditLog(Base):
 def log_audit_event(db, username: str, action: str, details: str = ""):
     """Helper untuk mencatat aktivitas sistem / user ke database audit_logs."""
     try:
-        log = AuditLog(username=username or "SYSTEM", action=action, details=details)
+        log = AuditLog(username=username or "SYSTEM", action=action, details=details, timestamp=datetime.now())
         db.add(log)
         db.commit()
     except Exception as e:
