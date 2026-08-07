@@ -265,68 +265,68 @@ export default function Models() {
 
       {/* Detail Model Labels Modal */}
       {selectedDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={() => setSelectedDetail(null)}>
-          <div className="w-full max-w-lg p-6 glass-card border border-white/10 rounded-2xl shadow-2xl space-y-4" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center pb-3 border-b border-white/10">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Info className="w-5 h-5 text-blue-400" />
-                Detail Label Model {selectedDetail.part_no}.pt
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn" onClick={() => setSelectedDetail(null)}>
+          <div className="w-full max-w-2xl p-8 glass-card border border-white/15 rounded-3xl shadow-2xl space-y-6" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center pb-4 border-b border-white/10">
+              <h3 className="text-2xl font-bold text-white flex items-center gap-3">
+                <Info className="w-7 h-7 text-blue-400" />
+                Detail Label Model <span className="text-blue-400">{selectedDetail.part_no}.pt</span>
               </h3>
-              <button onClick={() => setSelectedDetail(null)} className="text-slate-400 hover:text-white font-bold">✕</button>
+              <button onClick={() => setSelectedDetail(null)} className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white font-bold">✕</button>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-2 p-3 bg-black/30 border border-white/5 rounded-xl">
+            <div className="space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-4 p-4 bg-black/30 border border-white/5 rounded-2xl">
                 <div>
-                  <span className="text-slate-500 block">Ukuran File</span>
-                  <span className="font-bold text-amber-400">{selectedDetail.size_mb} MB</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1">Ukuran File</span>
+                  <span className="text-lg font-bold text-amber-400">{selectedDetail.size_mb} MB</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block">Terakhir Di-update</span>
-                  <span className="font-mono text-slate-200">{selectedDetail.last_modified}</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1">Terakhir Di-update</span>
+                  <span className="text-base font-mono font-semibold text-slate-200">{selectedDetail.last_modified}</span>
                 </div>
               </div>
 
               <div>
-                <h4 className="font-semibold text-white mb-2 flex justify-between items-center">
+                <h4 className="font-bold text-white mb-3 text-base flex justify-between items-center">
                   <span>Daftar Komponen Wajib ({selectedDetail.komponen_count} label)</span>
                 </h4>
 
-                <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
+                <div className="max-h-64 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
                   {selectedDetail.komponen.length > 0 ? (
                     selectedDetail.komponen.map((c, i) => (
-                      <div key={i} className="flex justify-between items-center p-2.5 bg-white/5 border border-white/5 rounded-lg text-slate-300">
-                        <div className="flex items-center gap-2">
-                          <span className="px-1.5 py-0.5 rounded bg-black/40 text-[10px] font-mono font-bold text-blue-300 uppercase">
+                      <div key={i} className="flex justify-between items-center p-3 bg-white/5 border border-white/5 rounded-xl text-slate-300">
+                        <div className="flex items-center gap-3">
+                          <span className="px-2 py-0.5 rounded-md bg-black/40 text-xs font-mono font-bold text-blue-300 uppercase">
                             Sisi: {c.sisi}
                           </span>
-                          <span className="font-semibold text-white">{c.nama_komponen}</span>
+                          <span className="font-semibold text-white text-base">{c.nama_komponen}</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-[10px] text-slate-400 block">Min Conf: {(c.min_confidence * 100).toFixed(0)}%</span>
+                          <span className="text-xs text-slate-400 block font-semibold">Min Conf: {(c.min_confidence * 100).toFixed(0)}%</span>
                         </div>
                       </div>
                     ))
                   ) : (
-                    <div className="p-4 text-center text-slate-500 italic">Belum ada rule khusus terdaftar di DB untuk part ini.</div>
+                    <div className="p-4 text-center text-slate-500 italic text-sm">Belum ada rule khusus terdaftar di DB untuk part ini.</div>
                   )}
                 </div>
               </div>
             </div>
 
-            <div className="pt-2 flex justify-end gap-2">
+            <div className="pt-2 flex justify-end gap-3">
               <button
                 onClick={() => handleDownloadModel(selectedDetail.part_no)}
-                className="px-3.5 py-2 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 rounded-lg shadow-md flex items-center gap-1.5"
+                className="px-6 py-2.5 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-500 rounded-xl shadow-lg shadow-purple-600/30 flex items-center gap-2"
               >
-                <Download className="w-3.5 h-3.5" />
+                <Download className="w-4 h-4" />
                 Download .pt
               </button>
               <button
                 onClick={() => setSelectedDetail(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-300 bg-white/5 border border-white/10 hover:bg-white/10 rounded-lg"
+                className="px-6 py-2.5 text-sm font-semibold text-slate-300 bg-white/5 border border-white/10 hover:bg-white/10 rounded-xl"
               >
-                Tutup
+                Tutup Informasi
               </button>
             </div>
           </div>
@@ -335,16 +335,16 @@ export default function Models() {
 
       {/* Upload/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="w-full max-w-lg p-6 glass-card border border-white/10 rounded-2xl shadow-2xl">
-            <h3 className="text-xl font-bold text-white mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+          <div className="w-full max-w-xl p-8 glass-card border border-white/15 rounded-3xl shadow-2xl space-y-6">
+            <h3 className="text-2xl font-bold text-white mb-6">
               {editingPartNo ? 'Rename Model Part' : 'Upload Model AI (.pt)'}
             </h3>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-5">
               {!editingPartNo && (
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
                     Berkas Model YOLO (.pt)
                   </label>
                   <input
@@ -352,26 +352,26 @@ export default function Models() {
                     accept=".pt"
                     required
                     onChange={handleFileChange}
-                    className="w-full p-2.5 bg-black/30 border border-white/10 rounded-xl text-white text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"
+                    className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white text-base file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"
                   />
                 </div>
               )}
 
               {previewLoading && (
-                <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs animate-pulse">
+                <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-sm animate-pulse">
                   ⏳ Membaca label dari berkas model...
                 </div>
               )}
 
               {labelPreview && (
-                <div className="p-4 rounded-xl bg-black/40 border border-white/10 text-xs space-y-2 max-h-48 overflow-y-auto">
-                  <div className="font-semibold text-blue-400 flex items-center gap-1.5">
-                    <CheckCircle className="w-4 h-4" />
+                <div className="p-4 rounded-2xl bg-black/40 border border-white/10 text-sm space-y-2 max-h-56 overflow-y-auto">
+                  <div className="font-bold text-blue-400 flex items-center gap-2 text-base">
+                    <CheckCircle className="w-5 h-5" />
                     Preview Label ({labelPreview.label_count} label ditemukan)
                   </div>
-                  <div className="font-mono text-slate-300 space-y-1">
+                  <div className="font-mono text-slate-300 space-y-1.5 pt-1">
                     {Object.entries(labelPreview.labels || {}).map(([idx, name]) => (
-                      <div key={idx} className="flex justify-between py-0.5 border-b border-white/5">
+                      <div key={idx} className="flex justify-between py-1 border-b border-white/5">
                         <span className="text-slate-500">ID #{idx}</span>
                         <span className="font-semibold text-emerald-400">{name}</span>
                       </div>
@@ -381,7 +381,7 @@ export default function Models() {
               )}
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
                   Part Number (Sesuai nama .pt)
                 </label>
                 <input
@@ -390,22 +390,22 @@ export default function Models() {
                   value={partNo}
                   onChange={(e) => setPartNo(e.target.value)}
                   placeholder="Contoh: 74231-0K550-00"
-                  className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-xl text-white font-mono text-sm focus:outline-none focus:border-blue-500"
+                  className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-xl text-white font-mono text-base focus:outline-none focus:border-blue-500"
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4">
+              <div className="flex justify-end gap-3 pt-6">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-slate-300 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10"
+                  className="px-6 py-2.5 text-base font-semibold text-slate-300 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-lg shadow-blue-600/30 disabled:opacity-50"
+                  className="px-6 py-2.5 text-base font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-lg shadow-blue-600/30 disabled:opacity-50"
                 >
                   {submitting ? 'Memproses...' : (editingPartNo ? 'Simpan Nama' : 'Unggah & Buat Rule')}
                 </button>

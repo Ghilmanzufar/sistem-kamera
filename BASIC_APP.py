@@ -175,7 +175,7 @@ class NGValidationDialog(QDialog):
         self.setLayout(layout)
 
     def check_pin(self):
-        role = authenticate_and_get_role(self.username_input.text(), self.pin_input.text(), ["admin", "pengawas"])
+        role = authenticate_and_get_role(self.username_input.text(), self.pin_input.text(), ["pengawas"])
         if role:
             self.accept()
         else:
@@ -297,16 +297,9 @@ class YoloApp(QWidget):
         self.btn_mock.setStyleSheet("background-color: #475569; color: white; font-size:14px; font-weight:bold; border-radius: 5px; padding: 0 10px;")
         self.btn_mock.clicked.connect(self.trigger_mock_detect)
 
-        self.btn_mock_ng = QPushButton("🚨 MOCK NG", self)
-        self.btn_mock_ng.setFixedHeight(35)
-        self.btn_mock_ng.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_mock_ng.setStyleSheet("background-color: #ef4444; color: white; font-size:14px; font-weight:bold; border-radius: 5px; padding: 0 10px;")
-        self.btn_mock_ng.clicked.connect(self.trigger_mock_ng)
-
         toolbar_layout = QHBoxLayout()
         toolbar_layout.addWidget(self.btn_demo)
         toolbar_layout.addWidget(self.btn_mock)
-        toolbar_layout.addWidget(self.btn_mock_ng)
         toolbar_layout.addStretch()
 
         # --- Main Layout ---
@@ -368,10 +361,6 @@ class YoloApp(QWidget):
             return
         with state.lock:
             state.mock_detect_trigger = True
-
-    def trigger_mock_ng(self):
-        with state.lock:
-            state.status = "NG"
 
     def update_frame(self):
         # 1. Update text info dari State (Thread-safe)

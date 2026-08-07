@@ -300,55 +300,81 @@ export default function History() {
 
       {/* Log Detail Modal */}
       {selectedLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={() => setSelectedLog(null)}>
-          <div className="w-full max-w-md p-6 glass-card border border-white/10 rounded-2xl shadow-2xl space-y-4" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center pb-3 border-b border-white/10">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Info className="w-5 h-5 text-blue-400" />
-                Detail Log Inspeksi #{selectedLog.id}
-              </h3>
-              <button onClick={() => setSelectedLog(null)} className="text-slate-400 hover:text-white font-bold">✕</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn" onClick={() => setSelectedLog(null)}>
+          <div className="w-full max-w-2xl p-8 glass-card border border-white/15 rounded-3xl shadow-2xl space-y-6" onClick={e => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="flex justify-between items-center pb-4 border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400">
+                  <Info className="w-7 h-7" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-white tracking-wide">
+                    Detail Log Inspeksi <span className="text-blue-400">#{selectedLog.id}</span>
+                  </h3>
+                  <p className="text-xs text-slate-400">Rincian data transaksi & hasil verifikasi kamera</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedLog(null)} 
+                className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all text-sm font-bold"
+                title="Tutup Modal"
+              >
+                ✕
+              </button>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div className="flex justify-between py-1 border-b border-white/5">
-                <span className="text-slate-400">ID Transaksi</span>
-                <span className="font-mono font-bold text-blue-400">{selectedLog.id_trans || '-'}</span>
+            {/* Modal Content Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">ID Transaksi</span>
+                <span className="text-xl font-mono font-bold text-blue-400 break-all">{selectedLog.id_trans || '-'}</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-white/5">
-                <span className="text-slate-400">Part Number</span>
-                <span className="font-bold text-white">{selectedLog.part_no || '-'}</span>
+
+              <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Part Number</span>
+                <span className="text-xl font-bold text-white">{selectedLog.part_no || selectedLog.p_no || '-'}</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-white/5">
-                <span className="text-slate-400">Target Qty</span>
-                <span className="font-bold text-slate-200">{selectedLog.target_qty ?? '-'}</span>
+
+              <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Target Qty</span>
+                <span className="text-xl font-bold text-slate-200">{selectedLog.target_qty ?? '-'}</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-white/5">
-                <span className="text-slate-400">Qty Aktual</span>
-                <span className="font-bold text-emerald-400">{selectedLog.qty_actual ?? '-'}</span>
+
+              <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Qty Aktual</span>
+                <span className="text-xl font-bold text-emerald-400">{selectedLog.qty_actual ?? '-'}</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-white/5">
-                <span className="text-slate-400">Status Deteksi</span>
-                <StatusBadge status={selectedLog.detection_status || 'OK'} />
+
+              <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Status Deteksi</span>
+                <div className="pt-1">
+                  <StatusBadge status={selectedLog.detection_status || 'OK'} />
+                </div>
               </div>
-              <div className="flex justify-between py-1 border-b border-white/5">
-                <span className="text-slate-400">Confidence Score</span>
-                <span className="font-mono font-bold text-amber-400">
+
+              <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Confidence Score</span>
+                <span className="text-xl font-mono font-bold text-amber-400">
                   {selectedLog.confidence_score !== undefined ? `${(selectedLog.confidence_score * 100).toFixed(0)}%` : '100%'}
                 </span>
               </div>
-              <div className="flex justify-between py-1 border-b border-white/5">
-                <span className="text-slate-400">Waktu Inspeksi</span>
-                <span className="text-slate-300">{selectedLog.created_at ? new Date(selectedLog.created_at).toLocaleString() : '-'}</span>
+
+              <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1 md:col-span-2">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Waktu Inspeksi</span>
+                <span className="text-base font-semibold text-slate-200">
+                  {selectedLog.created_at ? new Date(selectedLog.created_at).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'medium' }) : '-'}
+                </span>
               </div>
             </div>
 
+            {/* Modal Footer */}
             <div className="pt-2 flex justify-end">
               <button
                 onClick={() => setSelectedLog(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-300 bg-white/5 border border-white/10 hover:bg-white/10 rounded-lg"
+                className="px-8 py-3 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
               >
-                Tutup
+                Tutup Informasi
               </button>
             </div>
           </div>

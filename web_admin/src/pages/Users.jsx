@@ -134,11 +134,9 @@ export default function Users() {
               <td className="p-4 text-slate-300 text-sm">{u.fullname || '-'}</td>
               <td className="p-4">
                 <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase border ${
-                  u.role === 'admin'
-                    ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
-                    : u.role === 'pengawas'
+                  u.role === 'pengawas'
                     ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
-                    : 'bg-gray-500/20 text-gray-300 border-gray-500/30'
+                    : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                 }`}>
                   <Shield className="w-3 h-3" />
                   {u.role}
@@ -174,15 +172,15 @@ export default function Users() {
 
       {/* User Create/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="w-full max-w-md p-6 glass-card border border-white/10 rounded-2xl shadow-2xl">
-            <h3 className="text-xl font-bold text-white mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+          <div className="w-full max-w-xl p-8 glass-card border border-white/15 rounded-3xl shadow-2xl space-y-6">
+            <h3 className="text-2xl font-bold text-white mb-6">
               {editingUser ? `Edit User: ${editingUser.username}` : 'Tambah User Baru'}
             </h3>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                   Username
                 </label>
                 <input
@@ -190,24 +188,24 @@ export default function Users() {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-black/30 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                  className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-xl text-white text-base focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                   Nama Lengkap
                 </label>
                 <input
                   type="text"
                   value={fullname}
                   onChange={(e) => setFullname(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-black/30 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                  className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-xl text-white text-base focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                   PIN / Password {editingUser && '(Biarkan kosong jika tidak diubah)'}
                 </label>
                 <input
@@ -215,50 +213,49 @@ export default function Users() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-black/30 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                  className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-xl text-white text-base focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                   Role Sistem
                 </label>
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-900 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500"
+                  className="w-full px-4 py-3 bg-slate-900 border border-white/10 rounded-xl text-white text-base focus:outline-none focus:border-blue-500"
                 >
-                  <option value="admin">Admin (Akses Penuh)</option>
-                  <option value="pengawas">Pengawas (Monitoring)</option>
-                  <option value="operator">Operator (Desktop Only)</option>
+                  <option value="pengawas">Pengawas (Akses Penuh)</option>
+                  <option value="operator">Operator (History Inspeksi Only)</option>
                 </select>
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
+              <div className="flex items-center gap-3 pt-2">
                 <input
                   type="checkbox"
                   id="isActiveCheck"
                   checked={isActive}
                   onChange={(e) => setIsActive(e.target.checked)}
-                  className="w-4 h-4 rounded bg-black/30 border-white/10 text-blue-600 focus:ring-0"
+                  className="w-5 h-5 rounded bg-black/30 border-white/10 text-blue-600 focus:ring-0 cursor-pointer"
                 />
-                <label htmlFor="isActiveCheck" className="text-sm font-semibold text-slate-300 cursor-pointer">
+                <label htmlFor="isActiveCheck" className="text-base font-semibold text-slate-300 cursor-pointer">
                   Status Akun Aktif
                 </label>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4">
+              <div className="flex justify-end gap-3 pt-6">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-slate-300 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10"
+                  className="px-6 py-2.5 text-base font-semibold text-slate-300 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-lg shadow-blue-600/30 disabled:opacity-50"
+                  className="px-6 py-2.5 text-base font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-lg shadow-blue-600/30 disabled:opacity-50"
                 >
                   {submitting ? 'Memproses...' : 'Simpan User'}
                 </button>

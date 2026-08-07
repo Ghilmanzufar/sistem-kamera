@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
@@ -8,23 +8,44 @@ import Dashboard from './pages/Dashboard';
 import History from './pages/History';
 import Rules from './pages/Rules';
 import Models from './pages/Models';
-import NgHistory from './pages/NgHistory';
 import Users from './pages/Users';
 import Camera from './pages/Camera';
 import SisonConfig from './pages/SisonConfig';
 import Logs from './pages/Logs';
+import { initTheme } from './utils/theme';
+
+function isTokenValid(token) {
+  if (!token) return false;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 2) return true;
+    const payloadB64 = parts[0];
+    const padding = '='.repeat((4 - (payloadB64.length % 4)) % 4);
+    const base64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = JSON.parse(atob(base64 + padding));
+    if (jsonPayload.exp && Date.now() / 1000 > jsonPayload.exp) {
+      localStorage.removeItem('admin_token');
+      localStorage.removeItem('user_role');
+      localStorage.removeItem('username');
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // Layout wrapper with Left Sidebar
 function MainLayout() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const token = localStorage.getItem('admin_token');
   
-  if (!token) {
+  if (!token || !isTokenValid(token)) {
     return <Navigate to="/login" replace />;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-slate-100 flex">
+    <div className="min-h-screen app-bg-gradient flex">
       {/* Left Sidebar */}
       <Sidebar isCollapsed={isCollapsed} setIsCollapsed={setIsCollapsed} />
 
@@ -40,16 +61,28 @@ function MainLayout() {
   );
 }
 
-// Protected Route for Admin Only
-function AdminOnlyRoute() {
+// Protected Route for Pengawas Only
+function PengawasOnlyRoute() {
   const role = localStorage.getItem('user_role') || 'pengawas';
-  if (role !== 'admin') {
-    return <Navigate to="/dashboard" replace />;
+  if (role === 'operator') {
+    return <Navigate to="/history" replace />;
   }
   return <Outlet />;
 }
 
+function DefaultHomeRedirect() {
+  const role = localStorage.getItem('user_role') || 'pengawas';
+  if (role === 'operator') {
+    return <Navigate to="/history" replace />;
+  }
+  return <Navigate to="/dashboard" replace />;
+}
+
 export default function App() {
+  useEffect(() => {
+    initTheme();
+  }, []);
+
   return (
     <BrowserRouter basename="/admin">
       <Toaster
@@ -68,16 +101,17 @@ export default function App() {
 
         {/* Authenticated Layout */}
         <Route element={<MainLayout />}>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/" element={<DefaultHomeRedirect />} />
+          
+          {/* History Inspeksi bisa diakses oleh Pengawas & Operator */}
           <Route path="/history" element={<History />} />
-          <Route path="/ng-history" element={<NgHistory />} />
-          <Route path="/camera" element={<Camera />} />
-          <Route path="/sison-config" element={<SisonConfig />} />
-          <Route path="/logs" element={<Logs />} />
 
-          {/* Admin Only Pages */}
-          <Route element={<AdminOnlyRoute />}>
+          {/* Fitur & Halaman Pengawas (Full Access) */}
+          <Route element={<PengawasOnlyRoute />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/camera" element={<Camera />} />
+            <Route path="/sison-config" element={<SisonConfig />} />
+            <Route path="/logs" element={<Logs />} />
             <Route path="/rules" element={<Rules />} />
             <Route path="/models" element={<Models />} />
             <Route path="/users" element={<Users />} />
@@ -85,7 +119,7 @@ export default function App() {
         </Route>
 
         {/* Fallback */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<DefaultHomeRedirect />} />
       </Routes>
     </BrowserRouter>
   );

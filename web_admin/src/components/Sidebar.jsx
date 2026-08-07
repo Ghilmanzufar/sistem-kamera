@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -12,27 +12,39 @@ import {
   FileText, 
   LogOut,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Sun,
+  Moon
 } from 'lucide-react';
 import api from '../api/client';
 import ConfirmModal from './ConfirmModal';
+import { getStoredTheme, toggleTheme } from '../utils/theme';
 
 export default function Sidebar({ isCollapsed, setIsCollapsed }) {
   const navigate = useNavigate();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [themeMode, setThemeMode] = useState(getStoredTheme());
   const username = localStorage.getItem('username') || 'Admin';
   const role = localStorage.getItem('user_role') || 'pengawas';
 
+  useEffect(() => {
+    setThemeMode(getStoredTheme());
+  }, []);
+
+  const handleThemeToggle = () => {
+    const next = toggleTheme();
+    setThemeMode(next);
+  };
+
   const allNavItems = [
-    { to: "/dashboard", label: "Live Dashboard", icon: LayoutDashboard, roles: ['admin', 'pengawas'] },
-    { to: "/history", label: "History Inspeksi", icon: History, roles: ['admin', 'pengawas'] },
-    { to: "/rules", label: "Setting Rule", icon: Sliders, roles: ['admin'] },
-    { to: "/models", label: "Model AI (.pt)", icon: BrainCircuit, roles: ['admin'] },
-    { to: "/ng-history", label: "History NG", icon: AlertTriangle, roles: ['admin', 'pengawas'] },
-    { to: "/users", label: "User & PIN", icon: Users, roles: ['admin'] },
-    { to: "/camera", label: "Kamera", icon: Camera, roles: ['admin', 'pengawas'] },
-    { to: "/sison-config", label: "Config Sison", icon: Settings, roles: ['admin', 'pengawas'] },
-    { to: "/logs", label: "Audit Logs", icon: FileText, roles: ['admin', 'pengawas'] },
+    { to: "/dashboard", label: "Live Dashboard", icon: LayoutDashboard, roles: ['pengawas'] },
+    { to: "/history", label: "History Inspeksi", icon: History, roles: ['pengawas', 'operator'] },
+    { to: "/rules", label: "Setting Rule", icon: Sliders, roles: ['pengawas'] },
+    { to: "/models", label: "Model AI (.pt)", icon: BrainCircuit, roles: ['pengawas'] },
+    { to: "/users", label: "User & PIN", icon: Users, roles: ['pengawas'] },
+    { to: "/camera", label: "Kamera", icon: Camera, roles: ['pengawas'] },
+    { to: "/sison-config", label: "Config Sison", icon: Settings, roles: ['pengawas'] },
+    { to: "/logs", label: "Audit Logs", icon: FileText, roles: ['pengawas'] },
   ];
 
   const visibleNavItems = allNavItems.filter(item => item.roles.includes(role));
@@ -65,7 +77,6 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
               <h1 className="text-base font-bold text-white tracking-wide leading-tight truncate">
                 Inspeksi <span className="text-blue-500">Kamera</span>
               </h1>
-              <p className="text-[10px] text-slate-400 tracking-wider uppercase font-semibold">Admin System</p>
             </div>
 
             <button
@@ -102,36 +113,54 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
           </nav>
         </div>
 
-        {/* Bottom User Info & Logout */}
+        {/* Bottom User Info, Theme Switcher & Logout */}
         <div className="pt-4 border-t border-white/10 space-y-3">
           {!isCollapsed && (
             <div className="flex items-center justify-between px-2 py-1.5 rounded-xl bg-black/20 border border-white/5">
               <div className="truncate">
                 <p className="text-xs font-semibold text-white truncate">{username}</p>
                 <span className={`inline-block text-[9px] uppercase font-bold px-1.5 py-0.2 rounded ${
-                  role === 'admin' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                  role === 'pengawas' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                 }`}>
                   {role}
                 </span>
               </div>
-              <button
-                onClick={() => setShowLogoutModal(true)}
-                className="p-2 text-rose-400 hover:text-white hover:bg-rose-500 rounded-lg transition-all"
-                title="Keluar"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleThemeToggle}
+                  className="p-2 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition-all"
+                  title={themeMode === 'light' ? 'Ganti ke Mode Gelap' : 'Ganti ke Mode Terang'}
+                >
+                  {themeMode === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+                </button>
+                <button
+                  onClick={() => setShowLogoutModal(true)}
+                  className="p-2 text-rose-400 hover:text-white hover:bg-rose-500 rounded-lg transition-all"
+                  title="Keluar"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           )}
 
           {isCollapsed && (
-            <button
-              onClick={() => setShowLogoutModal(true)}
-              className="w-full flex justify-center py-2.5 text-rose-400 hover:text-white hover:bg-rose-500/20 rounded-xl transition-all"
-              title="Keluar"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={handleThemeToggle}
+                className="w-full flex justify-center py-2.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded-xl transition-all"
+                title={themeMode === 'light' ? 'Ganti ke Mode Gelap' : 'Ganti ke Mode Terang'}
+              >
+                {themeMode === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+              </button>
+              <button
+                onClick={() => setShowLogoutModal(true)}
+                className="w-full flex justify-center py-2.5 text-rose-400 hover:text-white hover:bg-rose-500/20 rounded-xl transition-all"
+                title="Keluar"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
+            </div>
           )}
         </div>
       </aside>

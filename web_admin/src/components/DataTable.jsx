@@ -7,7 +7,7 @@ export default function DataTable({ headers, children, isLoading, emptyMessage =
       style={maxHeight ? { maxHeight, overflowY: 'auto' } : {}}
     >
       <table className="w-full border-collapse relative">
-        <thead className={maxHeight ? "sticky top-0 bg-slate-900/95 backdrop-blur-md z-10 shadow-md" : ""}>
+        <thead className={maxHeight ? "sticky top-0 z-10 shadow-md" : ""}>
           <tr className="border-b border-white/15 bg-white/5 text-xs font-bold uppercase tracking-wider text-slate-200">
             {headers.map((h, idx) => (
               <th key={idx} className={`p-4 ${center ? 'text-center' : 'text-left'}`}>{h}</th>

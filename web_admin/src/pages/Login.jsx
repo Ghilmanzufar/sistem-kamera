@@ -12,8 +12,9 @@ export default function Login() {
 
   useEffect(() => {
     const token = localStorage.getItem('admin_token');
+    const role = localStorage.getItem('user_role');
     if (token) {
-      navigate('/dashboard');
+      navigate(role === 'operator' ? '/history' : '/dashboard');
     }
   }, [navigate]);
 
@@ -28,7 +29,7 @@ export default function Login() {
         localStorage.setItem('admin_token', res.data.token);
         localStorage.setItem('user_role', res.data.role);
         localStorage.setItem('username', res.data.username);
-        navigate('/dashboard');
+        navigate(res.data.role === 'operator' ? '/history' : '/dashboard');
       }
     } catch (err) {
       if (err.response && err.response.data && err.response.data.detail) {
@@ -42,7 +43,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900">
+    <div className="min-h-screen app-bg-gradient flex items-center justify-center p-4">
       <div className="w-full max-w-md p-8 glass-card border border-white/10 rounded-3xl shadow-2xl backdrop-blur-xl">
         <div className="text-center mb-8">
           <img

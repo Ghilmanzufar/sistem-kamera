@@ -45,3 +45,107 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.25);
 }
+
+.app-bg-gradient {
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+  color: #f8fafc;
+}
+
+/* 👱 Ponytail Global Table Cell Center Alignment */
+table th,
+table td {
+  text-align: center !important;
+}
+
+table td .flex,
+table td.flex {
+  justify-content: center !important;
+}
+
+/* 👱 Ponytail Light Mode Theme Overrides */
+html.light body,
+html.light .app-bg-gradient,
+html.light .min-h-screen {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%) !important;
+  color: #0f172a !important;
+}
+
+html.light .glass-container {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.06) !important;
+  color: #0f172a !important;
+}
+
+html.light .glass-card {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
+  color: #0f172a !important;
+}
+
+html.light header h1,
+html.light main .text-white,
+html.light header .text-white,
+html.light .glass-container .text-white,
+html.light .glass-card .text-white {
+  color: #0f172a !important;
+}
+
+html.light main .text-slate-400,
+html.light main .text-slate-300,
+html.light header .text-slate-400,
+html.light header .text-slate-300,
+html.light .glass-container .text-slate-400,
+html.light .glass-card .text-slate-400 {
+  color: #475569 !important;
+}
+
+thead.sticky {
+  background-color: #0f172a;
+}
+
+html.light thead,
+html.light thead.sticky,
+html.light table th {
+  color: #0f172a !important;
+  background-color: #e2e8f0 !important;
+  border-bottom-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+html.light table td {
+  border-bottom-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+html.light tr:hover {
+  background-color: rgba(0, 0, 0, 0.03) !important;
+}
+
+html.light input,
+html.light select {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.light input::placeholder {
+  color: #94a3b8 !important;
+}
+
+html.light main .bg-black\/30,
+html.light main .bg-black\/20,
+html.light .glass-container .bg-black\/30,
+html.light .glass-container .bg-black\/20 {
+  background-color: rgba(241, 245, 249, 0.85) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+html.light main .border-white\/10,
+html.light main .border-white\/5,
+html.light main .border-white\/15,
+html.light header .border-white\/10,
+html.light .glass-container .border-white\/10,
+html.light .glass-card .border-white\/10 {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+

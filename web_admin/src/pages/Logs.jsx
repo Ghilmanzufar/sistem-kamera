@@ -46,7 +46,7 @@ export default function Logs() {
       />
 
       <div className="glass-card p-6 border border-white/10 rounded-2xl">
-        <DataTable headers={headers} isLoading={loading}>
+        <DataTable headers={headers} isLoading={loading} maxHeight="550px">
           {logs.map((item) => (
             <tr key={item.id} className="hover:bg-white/5 transition-colors">
               <td className="p-4 text-xs font-mono text-slate-400">#{item.id}</td>

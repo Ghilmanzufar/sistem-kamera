@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -32,7 +32,7 @@ def decode_and_verify_token(token: str) -> dict:
     secret = os.getenv("SECRET_KEY", "sugity_super_secret_key_2026")
     parts = token.split(".")
     if len(parts) == 1 and secrets.compare_digest(token, secret):
-        return {"u": "admin", "r": "admin", "exp": int(time.time()) + 300}
+        return {"u": "pengawas", "r": "pengawas", "exp": int(time.time()) + 300}
     if len(parts) != 2:
         raise HTTPException(status_code=401, detail="Format token tidak valid")
     payload_b64, sig = parts
@@ -51,13 +51,22 @@ def decode_and_verify_token(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Token telah kedaluwarsa (Batas 5 Menit Habis). Silakan login kembali.")
     return payload
 
-def verify_admin_auth(credentials: HTTPAuthorizationCredentials = Depends(admin_security)) -> dict:
-    """👱 Ponytail: Proteksi endpoint admin dengan verifikasi token + tanggal kedaluwarsa 5 menit."""
-    return decode_and_verify_token(credentials.credentials)
+def verify_admin_auth(request: Request, credentials: HTTPAuthorizationCredentials = Depends(admin_security)) -> dict:
+    """👱 Ponytail: Proteksi endpoint admin dengan verifikasi token & hak akses role (Pengawas / Operator)."""
+    payload = decode_and_verify_token(credentials.credentials)
+    role = payload.get("r", "pengawas")
+    
+    # Peran Operator HANYA boleh mengakses /inspection-logs dan /logout
+    if role == "operator":
+        path = request.url.path
+        if not (path.endswith("/inspection-logs") or path.endswith("/logout")):
+            raise HTTPException(status_code=403, detail="Akses ditolak. Peran Operator hanya diizinkan melihat History Inspeksi.")
+            
+    return payload
 
 def get_current_user_name(credentials: HTTPAuthorizationCredentials = Depends(admin_security)) -> str:
     payload = decode_and_verify_token(credentials.credentials)
-    return payload.get("u", "ADMIN")
+    return payload.get("u", "SYSTEM")
 
 router = APIRouter(dependencies=[Depends(verify_admin_auth)])
 public_router = APIRouter()
@@ -68,11 +77,11 @@ class LoginSchema(BaseModel):
 
 @public_router.post("/admin-login")
 def admin_login(creds: LoginSchema, db: Session = Depends(get_db)):
-    """👱 Ponytail: Endpoint otentikasi admin dengan Token Expiration 5 Menit."""
+    """👱 Ponytail: Endpoint otentikasi dengan Token Expiration 5 Menit."""
     user = db.query(User).filter(User.username == creds.username).first()
     if not user or not verify_password(creds.password, user.password):
         raise HTTPException(status_code=401, detail="Username atau PIN salah!")
-    if not getattr(user, 'is_active', True) or user.role not in ["admin", "pengawas"]:
+    if not getattr(user, 'is_active', True) or user.role not in ["pengawas", "operator"]:
         raise HTTPException(status_code=403, detail="Akun tidak berwenang mengakses Dashboard!")
     
     token = create_admin_token(user.username, user.role, expires_in_seconds=300)
@@ -208,75 +217,6 @@ def get_inspection_logs(
         })
     return result
 
-@router.get("/ng-history")
-def get_ng_history(date_filter: Optional[str] = None, month_filter: Optional[str] = None, db: Session = Depends(get_db)):
-    """Ambil daftar foto NG records beserta metadata file fisik dan log DB."""
-    ng_folder = os.path.join(os.getcwd(), "ng_records")
-    if not os.path.exists(ng_folder):
-        os.makedirs(ng_folder, exist_ok=True)
-
-    query = db.query(InspectionLog).filter(InspectionLog.detection_status == 'NG')
-    
-    if month_filter:
-        try:
-            f_month = datetime.strptime(month_filter, "%Y-%m").date()
-            start_date = datetime(f_month.year, f_month.month, 1, 0, 0, 0)
-            if f_month.month == 12:
-                end_date = datetime(f_month.year + 1, 1, 1, 0, 0, 0) - timedelta(seconds=1)
-            else:
-                end_date = datetime(f_month.year, f_month.month + 1, 1, 0, 0, 0) - timedelta(seconds=1)
-            query = query.filter(InspectionLog.created_at >= start_date, InspectionLog.created_at <= end_date)
-        except ValueError:
-            pass
-    elif date_filter:
-        try:
-            f_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
-            start_date = datetime(f_date.year, f_date.month, f_date.day, 0, 0, 0)
-            end_date = datetime(f_date.year, f_date.month, f_date.day, 23, 59, 59)
-            query = query.filter(InspectionLog.created_at >= start_date, InspectionLog.created_at <= end_date)
-        except ValueError:
-            pass
-            
-    logs = query.order_by(InspectionLog.created_at.desc()).limit(200).all()
-    
-    results = []
-    for log in logs:
-        fname = os.path.basename(log.image_path) if log.image_path else ""
-        file_p = os.path.join(ng_folder, fname) if fname else ""
-        
-        size_mb = 0.0
-        if file_p and os.path.exists(file_p):
-            size_mb = round(os.path.getsize(file_p) / (1024 * 1024), 2)
-            
-        results.append({
-            "id": log.id,
-            "id_trans": log.id_trans,
-            "part_no": log.part_no,
-            "filename": fname or f"NG_Log_{log.id}.jpg",
-            "image_url": f"/ng_records/{fname}" if fname else "",
-            "created_at": log.created_at,
-            "size_mb": size_mb
-        })
-        
-    # Jika DB kosong tapi ada file di folder ng_records, sertakan file fisik
-    if not results:
-        for f in os.listdir(ng_folder):
-            if f.lower().endswith(('.jpg', '.jpeg', '.png')):
-                fp = os.path.join(ng_folder, f)
-                mtime = datetime.fromtimestamp(os.path.getmtime(fp))
-                sz = round(os.path.getsize(fp) / (1024 * 1024), 2)
-                results.append({
-                    "id": "-",
-                    "id_trans": "-",
-                    "part_no": "-",
-                    "filename": f,
-                    "image_url": f"/ng_records/{f}",
-                    "created_at": mtime,
-                    "size_mb": sz
-                })
-                
-    return results
-
 @router.get("/audit-logs")
 def get_audit_logs(date_filter: Optional[str] = None, db: Session = Depends(get_db)):
     query = db.query(AuditLog)
@@ -385,7 +325,7 @@ def _get_or_create_global_settings(db: Session) -> GlobalSettings:
 @router.get("/global-rule")
 def get_global_rule(db: Session = Depends(get_db)):
     gs = _get_or_create_global_settings(db)
-    total_parts = db.query(PartRule.part_no).distinct().count()
+    total_parts = db.query(PartRule.p_no).distinct().count()
     return {
         "default_avg_conf": gs.default_avg_conf,
         "default_min_conf": gs.default_min_conf,

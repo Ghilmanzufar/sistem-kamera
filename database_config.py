@@ -140,22 +140,32 @@ def log_audit_event(db, username: str, action: str, details: str = ""):
 # Buat semua tabel jika belum ada
 Base.metadata.create_all(bind=engine)
 
-# 👱 Ponytail: Pastikan minimal ada 1 user admin di DB karena backdoor hardcoded di aplikasi telah dihapus
-def _seed_default_admin():
+# 👱 Ponytail: Seeding default pengawas & migrasi otomatis role admin lama
+def _seed_default_users():
     try:
         with SessionLocal() as db:
+            # 1. Migrasi user lama yang masih ber-role 'admin' menjadi 'pengawas'
+            admins = db.query(User).filter(User.role == "admin").all()
+            if admins:
+                for a in admins:
+                    a.role = "pengawas"
+                db.commit()
+                print(f"[SYSTEM] Auto-migrated {len(admins)} user(s) from 'admin' role to 'pengawas'.")
+
+            # 2. Seed default user pengawas jika database masih kosong
             if not db.query(User).first():
-                default_admin = User(
-                    username="admin",
+                default_pengawas = User(
+                    username="pengawas",
                     password=hash_password("1234"),
-                    role="admin",
-                    fullname="Default Administrator",
+                    role="pengawas",
+                    fullname="Default Pengawas",
                     is_active=True
                 )
-                db.add(default_admin)
+                db.add(default_pengawas)
                 db.commit()
-                print("[SYSTEM] Default admin seeded (username: admin, pin: 1234). Harap segera ubah PIN di Web Admin.")
+                print("[SYSTEM] Default pengawas seeded (username: pengawas, pin: 1234). Harap segera sesuaikan PIN di Web Admin.")
     except Exception as e:
-        print(f"[WARN] Gagal seeding default admin: {e}")
+        print(f"[WARN] Gagal seeding/migrasi default user: {e}")
 
-_seed_default_admin()
+_seed_default_users()
+
