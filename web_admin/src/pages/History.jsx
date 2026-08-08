@@ -111,6 +111,9 @@ export default function History() {
   const startIdx = (currentPage - 1) * itemsPerPage;
   const currentLogs = logs.slice(startIdx, startIdx + itemsPerPage);
 
+  const rawRole = (localStorage.getItem('user_role') || 'pengawas').toLowerCase();
+  const isAdminOrPengawas = rawRole === 'admin' || rawRole === 'pengawas';
+
   const headers = ["# ID", "Waktu", "ID Trans", "Part No", "Target", "Aktual", "Status Deteksi", "Confidence", "Aksi"];
 
   return (
@@ -120,14 +123,16 @@ export default function History() {
         highlightTitle="Inspeksi"
         subtitle="Riwayat hasil deteksi inspeksi kamera produksi"
         actionButton={
-          <button
-            onClick={handleExportCSV}
-            disabled={logs.length === 0}
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-emerald-600/30 transition-all disabled:opacity-50"
-          >
-            <Download className="w-4 h-4" />
-            Export CSV / Excel
-          </button>
+          isAdminOrPengawas ? (
+            <button
+              onClick={handleExportCSV}
+              disabled={logs.length === 0}
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-emerald-600/30 transition-all disabled:opacity-50 cursor-pointer"
+            >
+              <Download className="w-4 h-4" />
+              Export CSV / Excel
+            </button>
+          ) : null
         }
       />
 
