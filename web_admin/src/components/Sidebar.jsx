@@ -43,8 +43,8 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
     { to: "/history", label: "History Inspeksi", icon: History, roles: ['pengawas', 'admin', 'operator'] },
     { to: "/rules", label: "Setting Rule", icon: Sliders, roles: ['pengawas', 'admin'] },
     { to: "/models", label: "Model AI (.pt)", icon: BrainCircuit, roles: ['pengawas', 'admin'] },
-    { to: "/users", label: "User & PIN", icon: Users, roles: ['pengawas', 'admin'] },
-    { to: "/camera", label: "Kamera", icon: Camera, roles: ['pengawas', 'admin'] },
+    { to: "/users", label: "User Manajemen", icon: Users, roles: ['pengawas', 'admin'] },
+    { to: "/camera", label: "Kamera Manajemen", icon: Camera, roles: ['pengawas', 'admin'] },
     { to: "/sison-config", label: "Config Sison", icon: Settings, roles: ['pengawas', 'admin'] },
     { to: "/logs", label: "Audit Logs", icon: FileText, roles: ['pengawas', 'admin'] },
   ];
