@@ -50,10 +50,10 @@ function MainLayout() {
       <Sidebar isCollapsed={isCollapsed} setIsCollapsed={setIsCollapsed} />
 
       {/* Main Content Area */}
-      <div className={`flex-1 transition-all duration-300 p-6 lg:p-8 min-w-0 ${
+      <div className={`flex-1 transition-all duration-300 p-4 sm:p-6 lg:p-8 min-w-0 ${
         isCollapsed ? 'ml-20' : 'ml-64'
       }`}>
-        <main className="max-w-7xl mx-auto glass-container p-6 lg:p-8">
+        <main className="w-full glass-container p-6 lg:p-10 shadow-2xl">
           <Outlet />
         </main>
       </div>

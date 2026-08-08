@@ -134,7 +134,7 @@ ${error?.stack || errorInfo?.componentStack || 'No stack trace recorded'}`;
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center p-4 sm:p-6 lg:p-10">
-      <div className="w-full max-w-4xl lg:max-w-5xl glass-card border border-white/15 rounded-3xl p-8 sm:p-12 lg:p-14 shadow-2xl space-y-10 animate-fadeIn">
+      <div className="w-full max-w-5xl lg:max-w-6xl glass-card border border-white/15 rounded-3xl p-8 sm:p-12 lg:p-14 shadow-2xl space-y-10 animate-fadeIn">
         
         {/* Top Header & Visual Icon */}
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-8 text-center sm:text-left pb-8 border-b border-white/10">
