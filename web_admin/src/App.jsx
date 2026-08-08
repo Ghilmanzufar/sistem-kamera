@@ -80,6 +80,7 @@ function DefaultHomeRedirect() {
 
 import ErrorBoundary from './components/ErrorBoundary';
 import ErrorPage from './pages/ErrorPage';
+import ForgotPassword from './pages/ForgotPassword';
 
 export default function App() {
   useEffect(() => {
@@ -102,6 +103,7 @@ export default function App() {
         />
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
 
           {/* Dedicated Error Information Page */}
           <Route path="/error" element={<ErrorPage />} />

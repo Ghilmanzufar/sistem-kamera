@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Camera, Lock, User as UserIcon, AlertCircle } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Camera, Lock, User as UserIcon, AlertCircle, HelpCircle } from 'lucide-react';
 import api from '../api/client';
 
 export default function Login() {
@@ -44,7 +44,7 @@ export default function Login() {
 
   return (
     <div className="min-h-screen app-bg-gradient flex items-center justify-center p-4">
-      <div className="w-full max-w-md p-8 glass-card border border-white/10 rounded-3xl shadow-2xl backdrop-blur-xl">
+      <div className="w-full max-w-lg p-8 sm:p-10 glass-card border border-white/10 rounded-3xl shadow-2xl backdrop-blur-xl">
         <div className="text-center mb-8">
           <img
             src="LOGO_SUGITY.png"
@@ -83,9 +83,18 @@ export default function Login() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-              PIN / Password
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                PIN / Password
+              </label>
+              <Link
+                to="/forgot-password"
+                className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
+              >
+                <HelpCircle className="w-3.5 h-3.5" />
+                Lupa Password?
+              </Link>
+            </div>
             <div className="relative">
               <Lock className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -102,7 +111,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            className="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm cursor-pointer"
           >
             {loading ? 'Memproses...' : 'Masuk Dashboard'}
           </button>
