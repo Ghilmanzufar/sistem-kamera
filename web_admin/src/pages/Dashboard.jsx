@@ -123,12 +123,12 @@ export default function Dashboard() {
                 <td className="p-4 text-center">{t.part_name || '-'}</td>
 
                 {/* Progress Bar Visual (Target vs Actual) */}
-                <td className="p-4 text-center">
-                  <div className="flex flex-col gap-1.5 w-36 mx-auto">
-                    <div className="flex justify-between items-center text-xs font-bold px-1">
-                      <span className="text-emerald-400">{actualQty} Pcs</span>
+                <td className="p-4">
+                  <div className="flex flex-col gap-1.5 w-44 mx-auto">
+                    <div className="flex justify-between items-center text-xs font-semibold px-0.5">
+                      <span className="text-emerald-400 font-bold">{actualQty} Pcs</span>
                       <span className="text-slate-400">/ {targetQty} Pcs</span>
-                      <span className="text-[10px] font-mono text-blue-400">{pct}%</span>
+                      <span className="text-[11px] font-mono font-bold text-blue-300 bg-blue-500/20 px-1.5 py-0.5 rounded border border-blue-500/30">{pct}%</span>
                     </div>
                     <div className="w-full h-2 bg-black/40 rounded-full overflow-hidden border border-white/10 p-0.5">
                       <div 

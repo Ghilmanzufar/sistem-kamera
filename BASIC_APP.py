@@ -104,6 +104,7 @@ app_fastapi.include_router(admin_router.public_router, prefix="/api")
 # --- CUSTOM WEB ADMIN CONFIGURATION ---
 
 app_fastapi.include_router(admin_router.router, prefix="/api/admin")
+os.makedirs("web_admin/dist", exist_ok=True)
 app_fastapi.mount("/admin", SPAStaticFiles(directory="web_admin/dist", html=True), name="admin")
 app_fastapi.mount("/ng_records", StaticFiles(directory="ng_records"), name="ng_records")
 # ----------------------------------------
@@ -202,9 +203,13 @@ class YoloApp(QWidget):
             print(f"[WARNING] Gagal membaca DB, fallback ke index 0. Error: {e}")
             cam_source = 0
 
-        # 👱 Ponytail: Gunakan backend default (MSMF) karena DirectShow (CAP_DSHOW) bisa menghasilkan noise garis warna vertikal (gagal decode format/YUYV)
+        self.is_cam_active = (active_cam is not None)
         self.cam_source = cam_source
-        self._open_camera()
+        self.last_cam_check_time = 0.0
+        if self.is_cam_active:
+            self._open_camera()
+        else:
+            self.cap = cv2.VideoCapture() # Empty capture object
         
         self.model = None # Lazy load model nanti saat Start Sison
         self.current_loaded_p_no = "" # Untuk mendeteksi perubahan part number dari Sison
@@ -412,7 +417,39 @@ class YoloApp(QWidget):
             self.current_loaded_p_no = p_no
             self.last_model_mtime = curr_mtime
 
-        # 3. Baca Kamera
+        # 3. Dynamic Camera Switch & Toggle Sync dari Database
+        now_ts = time.time()
+        if now_ts - self.last_cam_check_time >= 1.0:
+            self.last_cam_check_time = now_ts
+            try:
+                db_cam_session = SessionLocal()
+                active_cam = db_cam_session.query(CameraConfig).filter(CameraConfig.is_active == True).first()
+                if active_cam:
+                    new_src = active_cam.source
+                    if isinstance(new_src, str) and new_src.isdigit():
+                        new_src = int(new_src)
+                    if not self.is_cam_active or self.cam_source != new_src or not self.cap.isOpened():
+                        self.is_cam_active = True
+                        self.cam_source = new_src
+                        if self.cap.isOpened():
+                            self.cap.release()
+                        self._open_camera()
+                        print(f"[SYSTEM] Saklar Kamera Aktif: {active_cam.name} (Source: {new_src})")
+                else:
+                    if self.is_cam_active:
+                        self.is_cam_active = False
+                        if self.cap.isOpened():
+                            self.cap.release()
+                        print("[SYSTEM] Saklar Kamera Standby (OFF): Video feed dihentikan.")
+                db_cam_session.close()
+            except Exception as e:
+                pass
+
+        if not self.is_cam_active:
+            self.video_label.setText("<span style='color:#94a3b8; font-size:24px; font-weight:bold;'>⏸️ KAMERA STANDBY (OFF)<br/><span style='color:#64748b; font-size:15px; font-weight:normal;'>Kamera dimatikan dari Admin Dashboard.<br/>Nyalakan saklar kamera untuk melanjutkan live video stream.</span></span>")
+            return
+
+        # 4. Baca Frame Kamera
         ret, frame = self.cap.read() if self.cap.isOpened() else (False, None)
         if not ret:
             self.video_label.setText("<span style='color:#ef4444; font-size:24px; font-weight:bold;'>⚠️ KAMERA GAGAL DIAKSES / TIDAK TERDETEKSI<br/>Cek sambungan port USB atau settingan sumber kamera di Admin Dashboard.</span>")

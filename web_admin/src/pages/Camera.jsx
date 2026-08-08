@@ -1,35 +1,34 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Camera as CameraIcon, Plus, CheckCircle, Trash2, Video, Pencil, AlertTriangle, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Video, RefreshCw, Info, Power } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 import PageHeader from '../components/PageHeader';
 import DataTable from '../components/DataTable';
-import ConfirmModal from '../components/ConfirmModal';
 
 export default function Camera() {
   const [cameras, setCameras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const [editCam, setEditCam] = useState(null); // null = mode tambah, obj = mode edit
-  const [name, setName] = useState('');
-  const [source, setSource] = useState('0');
-  const [submitting, setSubmitting] = useState(false);
-  const [deleteCamId, setDeleteCamId] = useState(null);
+  const [switchingId, setSwitchingId] = useState(null);
 
-  const fetchCameras = async () => {
+  const fetchCameras = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const res = await api.get('/api/admin/cameras');
       setCameras(res.data || []);
     } catch (err) {
-      toast.error('Gagal mengambil daftar kamera');
+      if (!isSilent) toast.error('Gagal mengambil daftar kamera');
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchCameras();
+    fetchCameras(false);
+    const interval = setInterval(() => {
+      fetchCameras(true);
+    }, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleScanCameras = async () => {
@@ -37,7 +36,7 @@ export default function Camera() {
     try {
       const res = await api.post('/api/admin/cameras/scan');
       setCameras(res.data || []);
-      toast.success(`Pemindaian selesai! Total ${res.data?.length || 0} kamera terdaftar.`);
+      toast.success(`Deteksi selesai! Ditemukan ${res.data?.length || 0} perangkat kamera.`);
     } catch (err) {
       toast.error('Gagal memindai perangkat kamera hardware');
     } finally {
@@ -45,276 +44,133 @@ export default function Camera() {
     }
   };
 
-  const resetForm = useCallback(() => {
-    setName('');
-    setSource('0');
-    setEditCam(null);
-    setShowModal(false);
-  }, []);
-
-  const handleOpenCreateModal = () => {
-    setName('');
-    setSource('0');
-    setEditCam(null);
-    setShowModal(true);
-  };
-
-  const handleOpenEditModal = (cam) => {
-    setEditCam(cam);
-    setName(cam.name);
-    setSource(cam.source);
-    setShowModal(true);
-  };
-
-  // Keyboard shortcut listener (ESC to close modal)
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        if (showModal) resetForm();
-        if (deleteCamId) setDeleteCamId(null);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showModal, deleteCamId, resetForm]);
-
-  const handleSubmitForm = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-
+  const handleToggleCamera = async (c) => {
+    setSwitchingId(c.id);
     try {
-      if (editCam) {
-        // Edit Mode
-        await api.put(`/api/admin/cameras/${editCam.id}`, { name, source });
-        toast.success(`Kamera ${name} berhasil diperbarui!`);
+      const res = await api.put(`/api/admin/cameras/${c.id}/toggle`);
+      if (res.data && res.data.is_active) {
+        toast.success(`Kamera "${c.name || 'Kamera'}" dinyalakan (ON / Aktif)!`);
       } else {
-        // Create Mode
-        await api.post('/api/admin/cameras', { name, source });
-        toast.success(`Kamera ${name} berhasil ditambahkan!`);
+        toast(`Kamera "${c.name || 'Kamera'}" dimatikan (OFF / Standby).`, { icon: '⏸️' });
       }
-      resetForm();
-      fetchCameras();
+      await fetchCameras();
     } catch (err) {
-      toast.error(editCam ? 'Gagal memperbarui kamera' : 'Gagal menambah kamera');
+      toast.error('Gagal mengubah saklar kamera');
     } finally {
-      setSubmitting(false);
+      setSwitchingId(null);
     }
   };
 
-  const handleActivateCamera = async (id, camName) => {
-    try {
-      await api.put(`/api/admin/cameras/${id}/activate`);
-      toast.success(`Kamera ${camName} diaktifkan sebagai sumber utama!`);
-      fetchCameras();
-    } catch (err) {
-      toast.error('Gagal mengaktifkan kamera');
-    }
-  };
-
-  const handleDeleteCamera = async () => {
-    if (!deleteCamId) return;
-    try {
-      const res = await api.delete(`/api/admin/cameras/${deleteCamId}`);
-      if (res.data && res.data.was_active) {
-        toast.success('Kamera aktif dihapus. Perangkat lain otomatis diaktifkan.');
-      } else {
-        toast.success('Kamera berhasil dihapus');
-      }
-      fetchCameras();
-    } catch (err) {
-      toast.error('Gagal menghapus kamera');
-    } finally {
-      setDeleteCamId(null);
-    }
-  };
-
-  const selectedDeleteCam = cameras.find((c) => c.id === deleteCamId);
-
-  const headers = ["# ID", "Nama Perangkat / Lokasi", "Tipe & Sumber Video", "Status Utama", "Aksi"];
+  const headers = ["# ID", "Nama Perangkat / Posisi Kamera", "Port Input USB", "Status Operasional", "Saklar Power (ON / OFF)"];
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Manajemen"
         highlightTitle="Kamera"
-        subtitle="Perangkat kamera masukan video terdeteksi di komputer lokasi inspeksi"
+        subtitle="Saklar pemilihan perangkat kamera inspeksi visual AI"
         actionButton={
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleScanCameras}
-              disabled={scanning}
-              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm rounded-xl shadow-lg shadow-emerald-600/30 transition-all disabled:opacity-50"
-            >
-              <RefreshCw className={`w-4 h-4 ${scanning ? 'animate-spin' : ''}`} />
-              {scanning ? 'Memindai Perangkat...' : 'Scan Kamera Hardware'}
-            </button>
-            <button
-              onClick={handleOpenCreateModal}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold text-sm rounded-xl border border-white/10 transition-all text-xs"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Tambah RTSP / Custom
-            </button>
-          </div>
+          <button
+            onClick={handleScanCameras}
+            disabled={scanning}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-emerald-600/30 transition-all disabled:opacity-50 cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${scanning ? 'animate-spin' : ''}`} />
+            {scanning ? 'Memindai Ulang...' : 'Deteksi Ulang Kamera'}
+          </button>
         }
       />
 
+      {/* Info Card / Guidance Banner */}
+      <div className="glass-card p-4 border border-blue-500/20 bg-blue-500/5 rounded-2xl flex items-start gap-3.5">
+        <Info className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+        <div className="text-xs text-slate-300 space-y-1">
+          <p className="font-semibold text-blue-300">
+            💡 Cara Ganti Kamera (Saklar ON / OFF):
+          </p>
+          <p className="text-slate-400 leading-relaxed">
+            Cukup klik tombol saklar <strong className="text-emerald-400">ON / OFF</strong> pada kamera yang ingin digunakan. Kamera yang disetel <strong className="text-emerald-400">ON</strong> akan langsung aktif dan digunakan oleh sistem AI untuk inspeksi visual.
+          </p>
+        </div>
+      </div>
+
+      {/* Camera Table with Centered Layout & ON/OFF Switch */}
       <div className="glass-card p-6 border border-white/10 rounded-2xl">
-        <DataTable headers={headers} isLoading={loading}>
+        <DataTable headers={headers} isLoading={loading || scanning} emptyMessage="Tidak ada kamera terdaftar. Kamera akan otomatis terdeteksi saat sistem berjalan.">
           {cameras.map((c) => {
-            const isRtsp = c.source.toLowerCase().startsWith('rtsp://') || c.source.toLowerCase().startsWith('http://');
+            const src = String(c?.source || '0');
+            const camName = c?.name || `USB Camera (${src})`;
+            const isSwitching = switchingId === c.id;
+
             return (
-              <tr key={c.id} className="hover:bg-white/5 transition-colors">
-                <td className="p-4 text-xs font-mono text-slate-400">#{c.id}</td>
-                <td className="p-4 font-bold text-white flex items-center gap-2">
-                  <Video className="w-4 h-4 text-blue-400" />
-                  {c.name}
+              <tr key={c.id || src} className="hover:bg-white/5 transition-colors">
+                {/* 1. ID */}
+                <td className="p-4 text-xs font-mono text-slate-400 text-center">
+                  #{c.id ?? '-'}
                 </td>
-                <td className="p-4">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
-                        isRtsp
-                          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                      }`}
-                    >
-                      {isRtsp ? 'RTSP Stream' : 'USB / Webcam'}
-                    </span>
-                    <span className="font-mono text-xs text-slate-300">{c.source}</span>
+
+                {/* 2. Nama Perangkat */}
+                <td className="p-4 font-bold text-white text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <Video className={`w-4 h-4 ${c.is_active ? 'text-emerald-400' : 'text-slate-500'} shrink-0`} />
+                    <span className="truncate">{camName}</span>
                   </div>
                 </td>
-                <td className="p-4">
-                  {c.is_active ? (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/20">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                      Aktif Utama
+
+                {/* 3. Port Input USB */}
+                <td className="p-4 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      USB Port
                     </span>
-                  ) : (
-                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-500/20 text-slate-400">
-                      Standby
+                    <span className="font-mono text-xs text-slate-300 bg-black/30 px-2.5 py-0.5 rounded-lg border border-white/5 font-semibold">
+                      Index {src}
                     </span>
-                  )}
+                  </div>
                 </td>
-                <td className="p-4 flex items-center gap-2">
-                  {!c.is_active && (
+
+                {/* 4. Status Operasional */}
+                <td className="p-4 text-center">
+                  <div className="flex justify-center items-center">
+                    {c.is_active ? (
+                      <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/20">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                        AKTIF (ON)
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 border border-white/10">
+                        <span className="w-2 h-2 rounded-full bg-slate-500"></span>
+                        STANDBY (OFF)
+                      </span>
+                    )}
+                  </div>
+                </td>
+
+                {/* 5. Saklar ON / OFF Single Button */}
+                <td className="p-4 text-center">
+                  <div className="flex items-center justify-center">
                     <button
-                      onClick={() => handleActivateCamera(c.id, c.name)}
-                      className="px-3 py-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg hover:bg-emerald-500 hover:text-white transition-all"
+                      onClick={() => handleToggleCamera(c)}
+                      disabled={isSwitching}
+                      className={`flex items-center justify-center gap-2 px-5 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                        c.is_active
+                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30'
+                          : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 hover:text-white'
+                      } ${isSwitching ? 'opacity-50 cursor-wait' : ''}`}
+                      title={c.is_active ? 'Klik untuk mematikan kamera (OFF / Standby)' : 'Klik untuk menyalakan kamera ini (ON / Aktif)'}
                     >
-                      Aktifkan
+                      <Power className={`w-3.5 h-3.5 ${c.is_active ? 'text-white' : 'text-slate-400'}`} />
+                      <span>{c.is_active ? 'ON' : 'OFF'}</span>
                     </button>
-                  )}
-                  <button
-                    onClick={() => handleOpenEditModal(c)}
-                    className="p-2 text-xs font-semibold text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-lg hover:bg-blue-500 hover:text-white transition-all"
-                    title="Edit Konfigurasi Kamera"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setDeleteCamId(c.id)}
-                    className="p-2 text-xs font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg hover:bg-rose-500 hover:text-white transition-all"
-                    title="Hapus Perangkat Kamera"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  </div>
                 </td>
               </tr>
             );
           })}
         </DataTable>
       </div>
-
-      {/* Add / Edit Camera Modal */}
-      {showModal && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) resetForm();
-          }}
-        >
-          <div className="w-full max-w-md p-6 glass-card border border-white/10 rounded-2xl shadow-2xl">
-            <h3 className="text-xl font-bold text-white mb-4">
-              {editCam ? 'Ubah Konfigurasi Kamera' : 'Tambah Perangkat Kamera Baru'}
-            </h3>
-
-            <form onSubmit={handleSubmitForm} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                  Nama Perangkat / Lokasi
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Kamera Line 1 Front"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-black/30 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500 transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                  Sumber Video (Index USB 0/1/2 atau URL RTSP)
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="0 atau rtsp://192.168.1.100:554/stream"
-                  value={source}
-                  onChange={(e) => setSource(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-black/30 border border-white/10 rounded-xl text-white font-mono text-sm focus:outline-none focus:border-blue-500 transition-colors"
-                />
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Gunakan <code className="text-amber-300">0</code> atau <code className="text-amber-300">1</code> untuk USB Webcam, atau sertakan URL RTSP lengkap.
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="px-4 py-2 text-sm font-medium text-slate-300 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-all"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-lg shadow-blue-600/30 disabled:opacity-50 transition-all"
-                >
-                  {submitting ? 'Memproses...' : editCam ? 'Simpan Perubahan' : 'Simpan Kamera'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation */}
-      <ConfirmModal
-        isOpen={Boolean(deleteCamId)}
-        title="Hapus Kamera"
-        message={
-          <div>
-            <p>Apakah Anda yakin ingin menghapus konfigurasi kamera <strong>{selectedDeleteCam?.name}</strong>?</p>
-            {selectedDeleteCam?.is_active && (
-              <div className="mt-3 p-3 bg-rose-500/20 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
-                <span>
-                  <strong>Peringatan PENTING:</strong> Kamera ini saat ini berstatus <strong>Aktif Utama</strong>. Jika dihapus, sistem akan otomatis mengalihkan sumber video ke kamera standby tersisa.
-                </span>
-              </div>
-            )}
-          </div>
-        }
-        confirmText="Hapus Kamera"
-        isDanger={true}
-        onConfirm={handleDeleteCamera}
-        onCancel={() => setDeleteCamId(null)}
-      />
     </div>
   );
 }
+
 

@@ -47,6 +47,10 @@ export default function History() {
 
   useEffect(() => {
     fetchLogs(false);
+    const interval = setInterval(() => {
+      fetchLogs(true); // silent background update without spinner
+    }, 2000);
+    return () => clearInterval(interval);
   }, [filterType, dateFilter, monthFilter, statusFilter]);
 
   const handleSearchSubmit = (e) => {
@@ -66,12 +70,15 @@ export default function History() {
   const handleExportCSV = () => {
     if (logs.length === 0) return toast.error('Tidak ada data untuk diexport!');
 
-    const headers = ["ID Log", "Waktu", "ID Transaksi", "Part Number", "Target Qty", "Actual Qty", "Status Deteksi", "Confidence Score"];
+    const headers = ["ID Log", "Waktu", "ID Transaksi", "Part Number", "Nama Part", "Lot No", "Unique No", "Target Qty", "Actual Qty", "Status Deteksi", "Confidence Score"];
     const rows = logs.map(l => [
       l.id,
       l.created_at ? new Date(l.created_at).toLocaleString() : '-',
       `"${l.id_trans || '-'}"`,
       `"${l.part_no || '-'}"`,
+      `"${l.part_name || '-'}"`,
+      `"${l.lot_no || '-'}"`,
+      `"${l.unique_no || '-'}"`,
       l.target_qty ?? '-',
       l.qty_actual ?? '-',
       l.detection_status || 'OK',
@@ -124,11 +131,29 @@ export default function History() {
         }
       />
 
-      {/* Summary Stat Cards */}
+      {/* Summary Stat Cards with Quick Filter Click */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard title="Total Inspeksi" value={totalCount} icon={Activity} color="blue" />
-        <StatCard title="Inspeksi OK" value={okCount} icon={CheckCircle} color="emerald" />
-        <StatCard title="Inspeksi NG" value={ngCount} icon={AlertOctagon} color="rose" />
+        <StatCard 
+          title="Total Inspeksi (Semua)" 
+          value={totalCount} 
+          icon={Activity} 
+          color="blue" 
+          onClick={() => setStatusFilter('ALL')} 
+        />
+        <StatCard 
+          title="Inspeksi OK (Berhasil)" 
+          value={okCount} 
+          icon={CheckCircle} 
+          color="emerald" 
+          onClick={() => setStatusFilter('OK')} 
+        />
+        <StatCard 
+          title="Inspeksi NG (Cacat)" 
+          value={ngCount} 
+          icon={AlertOctagon} 
+          color="rose" 
+          onClick={() => setStatusFilter('NG')} 
+        />
       </div>
 
       {/* Filter Bar */}
@@ -244,20 +269,20 @@ export default function History() {
               <tr key={item.id} className="hover:bg-white/5 transition-colors">
                 <td className="p-4 text-xs font-mono text-slate-400 text-center">#{item.id}</td>
                 <td className="p-4 text-xs text-slate-300 text-center">
-                  {item.created_at ? new Date(item.created_at).toLocaleString() : '-'}
+                  {item.created_at ? new Date(item.created_at).toLocaleString('id-ID') : '-'}
                 </td>
-                <td className="p-4 font-medium text-blue-400 text-center cursor-pointer hover:underline" onClick={() => setSelectedLog(item)}>
+                <td className="p-4 font-mono font-medium text-slate-200 text-center cursor-pointer hover:text-white hover:underline" onClick={() => setSelectedLog(item)}>
                   {item.id_trans || '-'}
                 </td>
-                <td className="p-4 font-semibold text-white text-center">{item.part_no || item.p_no || '-'}</td>
-                <td className="p-4 font-bold text-slate-300 text-center">{item.target_qty ?? '-'}</td>
-                <td className="p-4 font-bold text-emerald-400 text-center">{item.qty_actual ?? '-'}</td>
+                <td className="p-4 font-medium text-slate-200 text-center">{item.part_no || item.p_no || '-'}</td>
+                <td className="p-4 font-medium text-slate-300 text-center">{item.target_qty ?? '-'}</td>
+                <td className="p-4 font-medium text-slate-200 text-center">{item.qty_actual ?? '-'}</td>
                 <td className="p-4 text-center"><StatusBadge status={status} /></td>
-                <td className="p-4 font-mono font-bold text-amber-400 text-center">{conf}</td>
+                <td className="p-4 font-mono font-medium text-slate-300 text-center">{conf}</td>
                 <td className="p-4 text-center flex justify-center">
                   <button
                     onClick={() => setSelectedLog(item)}
-                    className="p-1.5 text-xs text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-lg hover:bg-blue-500 hover:text-white transition-all"
+                    className="p-1.5 text-xs text-slate-300 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 hover:text-white transition-all cursor-pointer"
                     title="Lihat Detail Log"
                   >
                     <Info className="w-3.5 h-3.5" />
@@ -279,17 +304,17 @@ export default function History() {
               <button
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                className="p-2 rounded-lg bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="p-2 rounded-lg bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <span className="px-3 py-1 bg-black/30 border border-white/10 rounded-lg text-white font-medium">
+              <span className="px-3 py-1 bg-black/30 border border-white/10 rounded-lg text-slate-200 font-medium">
                 Halaman {currentPage} dari {totalPages}
               </span>
               <button
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                className="p-2 rounded-lg bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="p-2 rounded-lg bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -305,19 +330,19 @@ export default function History() {
             {/* Modal Header */}
             <div className="flex justify-between items-center pb-4 border-b border-white/10">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400">
-                  <Info className="w-7 h-7" />
+                <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-200">
+                  <Info className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold text-white tracking-wide">
-                    Detail Log Inspeksi <span className="text-blue-400">#{selectedLog.id}</span>
+                  <h3 className="text-xl font-bold text-white tracking-wide">
+                    Detail Log Inspeksi #{selectedLog.id}
                   </h3>
                   <p className="text-xs text-slate-400">Rincian data transaksi & hasil verifikasi kamera</p>
                 </div>
               </div>
               <button 
                 onClick={() => setSelectedLog(null)} 
-                className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all text-sm font-bold"
+                className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all text-sm font-bold cursor-pointer"
                 title="Tutup Modal"
               >
                 ✕
@@ -328,22 +353,37 @@ export default function History() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1">
                 <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">ID Transaksi</span>
-                <span className="text-xl font-mono font-bold text-blue-400 break-all">{selectedLog.id_trans || '-'}</span>
+                <span className="text-lg font-mono font-semibold text-white break-all">{selectedLog.id_trans || '-'}</span>
               </div>
 
               <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1">
                 <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Part Number</span>
-                <span className="text-xl font-bold text-white">{selectedLog.part_no || selectedLog.p_no || '-'}</span>
+                <span className="text-lg font-semibold text-white">{selectedLog.part_no || selectedLog.p_no || '-'}</span>
+              </div>
+
+              <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1 md:col-span-2">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Nama Part / Komponen</span>
+                <span className="text-lg font-semibold text-white">{selectedLog.part_name || '-'}</span>
+              </div>
+
+              <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Nomor LOT (Lot No)</span>
+                <span className="text-lg font-mono font-semibold text-white">{selectedLog.lot_no || '-'}</span>
+              </div>
+
+              <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Nomor Unik (Unique No)</span>
+                <span className="text-lg font-mono font-semibold text-white">{selectedLog.unique_no || '-'}</span>
               </div>
 
               <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1">
                 <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Target Qty</span>
-                <span className="text-xl font-bold text-slate-200">{selectedLog.target_qty ?? '-'}</span>
+                <span className="text-lg font-semibold text-slate-200">{selectedLog.target_qty ?? '-'}</span>
               </div>
 
               <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1">
                 <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Qty Aktual</span>
-                <span className="text-xl font-bold text-emerald-400">{selectedLog.qty_actual ?? '-'}</span>
+                <span className="text-lg font-semibold text-slate-200">{selectedLog.qty_actual ?? '-'}</span>
               </div>
 
               <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1">
@@ -355,14 +395,14 @@ export default function History() {
 
               <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1">
                 <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Confidence Score</span>
-                <span className="text-xl font-mono font-bold text-amber-400">
+                <span className="text-lg font-mono font-semibold text-slate-200">
                   {selectedLog.confidence_score !== undefined ? `${(selectedLog.confidence_score * 100).toFixed(0)}%` : '100%'}
                 </span>
               </div>
 
               <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1 md:col-span-2">
                 <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Waktu Inspeksi</span>
-                <span className="text-base font-semibold text-slate-200">
+                <span className="text-sm font-medium text-slate-200">
                   {selectedLog.created_at ? new Date(selectedLog.created_at).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'medium' }) : '-'}
                 </span>
               </div>

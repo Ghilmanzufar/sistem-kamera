@@ -141,6 +141,27 @@ def log_audit_event(db, username: str, action: str, details: str = ""):
 # Buat semua tabel jika belum ada
 Base.metadata.create_all(bind=engine)
 
+def _auto_migrate_schema():
+    """👱 Ponytail: Otomatis tambahkan kolom baru ke tabel PostgreSQL jika ada model baru yang diperbarui."""
+    try:
+        from sqlalchemy import text, inspect
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+        with engine.connect() as conn:
+            if "part_rules" in tables:
+                cols = [c["name"] for c in inspector.get_columns("part_rules")]
+                if "min_confidence" not in cols:
+                    conn.execute(text("ALTER TABLE part_rules ADD COLUMN IF NOT EXISTS min_confidence DOUBLE PRECISION DEFAULT 0.70;"))
+                if "avg_confidence" not in cols:
+                    conn.execute(text("ALTER TABLE part_rules ADD COLUMN IF NOT EXISTS avg_confidence DOUBLE PRECISION DEFAULT 0.75;"))
+                if "min_coverage" not in cols:
+                    conn.execute(text("ALTER TABLE part_rules ADD COLUMN IF NOT EXISTS min_coverage DOUBLE PRECISION DEFAULT 1.0;"))
+            conn.commit()
+    except Exception as e:
+        print(f"[WARN] Auto-migrate schema: {e}")
+
+_auto_migrate_schema()
+
 # 👱 Ponytail: Seeding default pengawas & migrasi otomatis role admin lama
 def _seed_default_users():
     try:
@@ -169,4 +190,28 @@ def _seed_default_users():
         print(f"[WARN] Gagal seeding/migrasi default user: {e}")
 
 _seed_default_users()
+
+def _auto_seed_camera_hardware():
+    """👱 Ponytail: Otomatis deteksi kamera hardware USB saat startup tanpa perlu scan manual."""
+    try:
+        import subprocess
+        with SessionLocal() as db:
+            if db.query(CameraConfig).count() == 0:
+                pnp_names = []
+                try:
+                    cmd = ['powershell', '-NoProfile', '-Command', 'Get-PnpDevice -Class Camera, Image -Status OK | Select-Object -ExpandProperty FriendlyName']
+                    res = subprocess.check_output(cmd, timeout=5).decode(errors='ignore')
+                    pnp_names = [line.strip() for line in res.splitlines() if line.strip()]
+                except Exception:
+                    pass
+                sources = pnp_names if pnp_names else ["USB 2.0 Camera"]
+                for idx, cam_name in enumerate(sources):
+                    db_cam = CameraConfig(name=cam_name, source=str(idx), is_active=(idx == 0))
+                    db.add(db_cam)
+                db.commit()
+                print(f"[SYSTEM] Auto-detected {len(sources)} hardware camera(s) on startup.")
+    except Exception as e:
+        print(f"[WARN] Auto-seed camera: {e}")
+
+_auto_seed_camera_hardware()
 

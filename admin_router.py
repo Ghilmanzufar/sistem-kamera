@@ -176,6 +176,9 @@ def get_inspection_logs(
     """👱 Ponytail: Ambil riwayat log inspeksi kamera (OK & NG) dengan filter tanggal/bulan, part_no, dan status."""
     query = db.query(
         InspectionLog,
+        Transaction.lot_no,
+        Transaction.unique_no,
+        Transaction.part_name,
         Transaction.target_qty,
         Transaction.qty_actual
     ).outerjoin(Transaction, InspectionLog.id_trans == Transaction.id_trans)
@@ -209,12 +212,15 @@ def get_inspection_logs(
     logs_raw = query.order_by(InspectionLog.created_at.desc()).limit(500).all()
     
     result = []
-    for log, target_qty, qty_actual in logs_raw:
+    for log, lot_no, unique_no, part_name, target_qty, qty_actual in logs_raw:
         result.append({
             "id": log.id,
             "created_at": log.created_at,
             "id_trans": log.id_trans,
             "part_no": log.part_no,
+            "part_name": part_name or "-",
+            "lot_no": lot_no or "-",
+            "unique_no": unique_no or "-",
             "detection_status": log.detection_status,
             "confidence_score": log.confidence_score,
             "target_qty": target_qty if target_qty is not None else "-",
@@ -222,6 +228,14 @@ def get_inspection_logs(
         })
     return result
 
+@router.delete("/inspection-logs")
+def clear_all_inspection_logs(db: Session = Depends(get_db), auth: dict = Depends(verify_admin_auth)):
+    """👱 Ponytail: Hapus seluruh riwayat log inspeksi dan catat di audit logs."""
+    username = auth.get("u", "ADMIN")
+    deleted_count = db.query(InspectionLog).delete()
+    log_audit_event(db, username, "DELETE_ALL_INSPECTION_LOGS", f"Menghapus seluruh {deleted_count} data riwayat inspeksi")
+    db.commit()
+    return {"success": True, "message": f"Berhasil menghapus {deleted_count} data riwayat inspeksi."}
 @router.get("/audit-logs")
 def get_audit_logs(date_filter: Optional[str] = None, db: Session = Depends(get_db)):
     query = db.query(AuditLog)
@@ -581,12 +595,20 @@ def delete_model(part_no: str, db: Session = Depends(get_db), uname: str = Depen
 # --- CAMERA API ---
 import subprocess
 
+def _camera_to_dict(c: CameraConfig) -> dict:
+    return {
+        "id": c.id,
+        "name": c.name or "Kamera",
+        "source": c.source or "0",
+        "is_active": bool(c.is_active)
+    }
+
 def _scan_hardware_cameras(db: Session):
     """Pindai kamera hardware USB terhubung ke komputer dan sinkronkan dengan Database."""
     pnp_names = []
     try:
-        cmd = 'powershell -NoProfile -Command "Get-PnpDevice -Class Camera, Image -Status OK | Select-Object -ExpandProperty FriendlyName"'
-        res = subprocess.check_output(cmd, shell=True, timeout=5).decode(errors='ignore')
+        cmd = ['powershell', '-NoProfile', '-Command', 'Get-PnpDevice -Class Camera, Image -Status OK | Select-Object -ExpandProperty FriendlyName']
+        res = subprocess.check_output(cmd, timeout=5).decode(errors='ignore')
         pnp_names = [line.strip() for line in res.splitlines() if line.strip()]
     except Exception:
         pass
@@ -595,7 +617,7 @@ def _scan_hardware_cameras(db: Session):
     existing_sources = {c.source for c in existing_cams}
     
     new_added = False
-    sources_to_check = pnp_names if pnp_names else ["Kamera USB Utama (Index 0)"]
+    sources_to_check = pnp_names if pnp_names else ["USB 2.0 Camera"]
     for idx, cam_name in enumerate(sources_to_check):
         src_str = str(idx)
         if src_str not in existing_sources:
@@ -608,14 +630,15 @@ def _scan_hardware_cameras(db: Session):
     if new_added:
         db.commit()
         
-    return db.query(CameraConfig).all()
+    cams = db.query(CameraConfig).order_by(CameraConfig.id.asc()).all()
+    return [_camera_to_dict(c) for c in cams]
 
 @router.get("/cameras")
 def get_cameras(db: Session = Depends(get_db)):
-    cams = db.query(CameraConfig).all()
+    cams = db.query(CameraConfig).order_by(CameraConfig.id.asc()).all()
     if not cams:
-        cams = _scan_hardware_cameras(db)
-    return cams
+        return _scan_hardware_cameras(db)
+    return [_camera_to_dict(c) for c in cams]
 
 @router.post("/cameras/scan")
 def scan_cameras(db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
@@ -623,15 +646,15 @@ def scan_cameras(db: Session = Depends(get_db), uname: str = Depends(get_current
     log_audit_event(db, uname, "SCAN_CAMERAS", f"Memindai ulang kamera hardware. Total {len(cams)} kamera terdaftar.")
     return cams
 
-
 @router.post("/cameras")
 def create_camera(cam: CameraConfigCreate, db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
-    db_cam = CameraConfig(name=cam.name, source=cam.source, is_active=False)
+    is_first = (db.query(CameraConfig).count() == 0)
+    db_cam = CameraConfig(name=cam.name, source=cam.source, is_active=is_first)
     db.add(db_cam)
     db.commit()
     db.refresh(db_cam)
     log_audit_event(db, uname, "CREATE_CAMERA", f"Menambah kamera {cam.name} (Source: {cam.source})")
-    return db_cam
+    return _camera_to_dict(db_cam)
 
 @router.put("/cameras/{cam_id}")
 def update_camera(cam_id: int, cam: CameraConfigUpdate, db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
@@ -644,7 +667,25 @@ def update_camera(cam_id: int, cam: CameraConfigUpdate, db: Session = Depends(ge
     db.commit()
     db.refresh(db_cam)
     log_audit_event(db, uname, "UPDATE_CAMERA", f"Mengubah kamera ID #{cam_id} menjadi {cam.name} (Source: {cam.source})")
-    return db_cam
+    return _camera_to_dict(db_cam)
+
+@router.put("/cameras/{cam_id}/toggle")
+def toggle_camera(cam_id: int, db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
+    db_cam = db.query(CameraConfig).filter(CameraConfig.id == cam_id).first()
+    if not db_cam:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    
+    new_state = not db_cam.is_active
+    if new_state:
+        db.query(CameraConfig).update({CameraConfig.is_active: False})
+        db_cam.is_active = True
+    else:
+        db_cam.is_active = False
+        
+    db.commit()
+    status_text = "ON (Aktif)" if db_cam.is_active else "OFF (Standby)"
+    log_audit_event(db, uname, "TOGGLE_CAMERA", f"Mengubah status kamera #{cam_id} ({db_cam.name}) menjadi {status_text}")
+    return {"status": "ok", "is_active": db_cam.is_active, "message": f"Kamera {db_cam.name} disetel {status_text}"}
 
 @router.put("/cameras/{cam_id}/activate")
 def activate_camera(cam_id: int, db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):

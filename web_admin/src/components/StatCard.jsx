@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function StatCard({ title, value, icon: Icon, color = "blue" }) {
+export default function StatCard({ title, value, icon: Icon, color = "blue", onClick }) {
   const colorStyles = {
     blue: "from-blue-500/20 to-indigo-500/5 text-blue-400 border-blue-500/30",
     emerald: "from-emerald-500/20 to-teal-500/5 text-emerald-400 border-emerald-500/30",
@@ -9,7 +9,12 @@ export default function StatCard({ title, value, icon: Icon, color = "blue" }) {
   };
 
   return (
-    <div className={`p-5 rounded-2xl border bg-gradient-to-br ${colorStyles[color] || colorStyles.blue} backdrop-blur-md shadow-lg`}>
+    <div 
+      onClick={onClick}
+      className={`p-5 rounded-2xl border bg-gradient-to-br ${colorStyles[color] || colorStyles.blue} backdrop-blur-md shadow-lg transition-all ${
+        onClick ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.98]' : ''
+      }`}
+    >
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-wider font-semibold text-slate-400 mb-1">{title}</p>

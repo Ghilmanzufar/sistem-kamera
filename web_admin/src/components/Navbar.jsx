@@ -23,7 +23,8 @@ export default function Navbar() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [themeMode, setThemeMode] = useState(getStoredTheme());
   const username = localStorage.getItem('username') || 'Admin';
-  const role = localStorage.getItem('user_role') || 'pengawas';
+  const rawRole = (localStorage.getItem('user_role') || 'pengawas').toLowerCase();
+  const effectiveRole = (rawRole === 'admin' || rawRole === 'pengawas') ? 'pengawas' : rawRole;
 
   useEffect(() => {
     setThemeMode(getStoredTheme());
@@ -35,17 +36,19 @@ export default function Navbar() {
   };
 
   const allNavItems = [
-    { to: "/dashboard", label: "Live Dashboard", icon: LayoutDashboard, roles: ['pengawas'] },
-    { to: "/history", label: "History Inspeksi", icon: History, roles: ['pengawas', 'operator'] },
-    { to: "/rules", label: "Setting Rule", icon: Sliders, roles: ['pengawas'] },
-    { to: "/models", label: "Model AI", icon: BrainCircuit, roles: ['pengawas'] },
-    { to: "/users", label: "User & PIN", icon: Users, roles: ['pengawas'] },
-    { to: "/camera", label: "Kamera", icon: Camera, roles: ['pengawas'] },
-    { to: "/sison-config", label: "Config Sison", icon: Settings, roles: ['pengawas'] },
-    { to: "/logs", label: "Audit Logs", icon: FileText, roles: ['pengawas'] },
+    { to: "/dashboard", label: "Live Dashboard", icon: LayoutDashboard, roles: ['pengawas', 'admin'] },
+    { to: "/history", label: "History Inspeksi", icon: History, roles: ['pengawas', 'admin', 'operator'] },
+    { to: "/rules", label: "Setting Rule", icon: Sliders, roles: ['pengawas', 'admin'] },
+    { to: "/models", label: "Model AI", icon: BrainCircuit, roles: ['pengawas', 'admin'] },
+    { to: "/users", label: "User & PIN", icon: Users, roles: ['pengawas', 'admin'] },
+    { to: "/camera", label: "Kamera", icon: Camera, roles: ['pengawas', 'admin'] },
+    { to: "/sison-config", label: "Config Sison", icon: Settings, roles: ['pengawas', 'admin'] },
+    { to: "/logs", label: "Audit Logs", icon: FileText, roles: ['pengawas', 'admin'] },
   ];
 
-  const visibleNavItems = allNavItems.filter(item => item.roles.includes(role));
+  const visibleNavItems = allNavItems.filter(item => 
+    item.roles.includes(rawRole) || item.roles.includes(effectiveRole)
+  );
 
   const handleLogout = async () => {
     try {

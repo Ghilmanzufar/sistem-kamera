@@ -10,20 +10,24 @@ export default function Logs() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchLogs = async () => {
-    setLoading(true);
+  const fetchLogs = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const res = await api.get('/api/admin/audit-logs');
       setLogs(res.data || []);
     } catch (err) {
-      toast.error('Gagal mengambil audit log');
+      if (!isSilent) toast.error('Gagal mengambil audit log');
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchLogs();
+    fetchLogs(false);
+    const interval = setInterval(() => {
+      fetchLogs(true);
+    }, 2500);
+    return () => clearInterval(interval);
   }, []);
 
   const headers = ["# ID", "Waktu", "Username", "Aksi", "Detail Aktivitas"];
@@ -56,16 +60,18 @@ export default function Logs() {
         <DataTable headers={headers} isLoading={loading} maxHeight="550px">
           {logs.map((item) => (
             <tr key={item.id} className="hover:bg-white/5 transition-colors">
-              <td className="p-4 text-xs font-mono text-slate-400">#{item.id}</td>
-              <td className="p-4 text-xs text-slate-300 whitespace-nowrap">
+              <td className="p-4 text-xs font-mono text-slate-400 text-center">#{item.id}</td>
+              <td className="p-4 text-xs text-slate-300 whitespace-nowrap text-center">
                 {formatDate(item.timestamp || item.created_at)}
               </td>
-              <td className="p-4 font-bold text-white text-xs flex items-center gap-2">
-                <FileText className="w-3.5 h-3.5 text-blue-400" />
-                {item.username}
+              <td className="p-4 font-bold text-white text-xs text-center">
+                <div className="flex items-center justify-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                  <span>{item.username}</span>
+                </div>
               </td>
-              <td className="p-4"><StatusBadge status={item.action} /></td>
-              <td className="p-4 text-xs text-slate-300">{item.details || '-'}</td>
+              <td className="p-4 text-center"><StatusBadge status={item.action} /></td>
+              <td className="p-4 text-xs text-slate-300 text-center">{item.details || '-'}</td>
             </tr>
           ))}
         </DataTable>

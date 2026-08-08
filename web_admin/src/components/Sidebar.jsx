@@ -25,7 +25,9 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [themeMode, setThemeMode] = useState(getStoredTheme());
   const username = localStorage.getItem('username') || 'Admin';
-  const role = localStorage.getItem('user_role') || 'pengawas';
+  
+  const rawRole = (localStorage.getItem('user_role') || 'pengawas').toLowerCase();
+  const effectiveRole = (rawRole === 'admin' || rawRole === 'pengawas') ? 'pengawas' : rawRole;
 
   useEffect(() => {
     setThemeMode(getStoredTheme());
@@ -37,17 +39,19 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
   };
 
   const allNavItems = [
-    { to: "/dashboard", label: "Live Dashboard", icon: LayoutDashboard, roles: ['pengawas'] },
-    { to: "/history", label: "History Inspeksi", icon: History, roles: ['pengawas', 'operator'] },
-    { to: "/rules", label: "Setting Rule", icon: Sliders, roles: ['pengawas'] },
-    { to: "/models", label: "Model AI (.pt)", icon: BrainCircuit, roles: ['pengawas'] },
-    { to: "/users", label: "User & PIN", icon: Users, roles: ['pengawas'] },
-    { to: "/camera", label: "Kamera", icon: Camera, roles: ['pengawas'] },
-    { to: "/sison-config", label: "Config Sison", icon: Settings, roles: ['pengawas'] },
-    { to: "/logs", label: "Audit Logs", icon: FileText, roles: ['pengawas'] },
+    { to: "/dashboard", label: "Live Dashboard", icon: LayoutDashboard, roles: ['pengawas', 'admin'] },
+    { to: "/history", label: "History Inspeksi", icon: History, roles: ['pengawas', 'admin', 'operator'] },
+    { to: "/rules", label: "Setting Rule", icon: Sliders, roles: ['pengawas', 'admin'] },
+    { to: "/models", label: "Model AI (.pt)", icon: BrainCircuit, roles: ['pengawas', 'admin'] },
+    { to: "/users", label: "User & PIN", icon: Users, roles: ['pengawas', 'admin'] },
+    { to: "/camera", label: "Kamera", icon: Camera, roles: ['pengawas', 'admin'] },
+    { to: "/sison-config", label: "Config Sison", icon: Settings, roles: ['pengawas', 'admin'] },
+    { to: "/logs", label: "Audit Logs", icon: FileText, roles: ['pengawas', 'admin'] },
   ];
 
-  const visibleNavItems = allNavItems.filter(item => item.roles.includes(role));
+  const visibleNavItems = allNavItems.filter(item => 
+    item.roles.includes(rawRole) || item.roles.includes(effectiveRole)
+  );
 
   const handleLogout = async () => {
     try {
@@ -119,10 +123,10 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
             <div className="flex items-center justify-between px-2 py-1.5 rounded-xl bg-black/20 border border-white/5">
               <div className="truncate">
                 <p className="text-xs font-semibold text-white truncate">{username}</p>
-                <span className={`inline-block text-[9px] uppercase font-bold px-1.5 py-0.2 rounded ${
-                  role === 'pengawas' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                <span className={`inline-block text-[9px] uppercase font-bold px-1.5 py-0.5 rounded ${
+                  effectiveRole === 'pengawas' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                 }`}>
-                  {role}
+                  {rawRole}
                 </span>
               </div>
               <div className="flex items-center gap-1">

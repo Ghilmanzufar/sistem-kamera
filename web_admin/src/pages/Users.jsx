@@ -23,19 +23,24 @@ export default function Users() {
   // Confirm Delete
   const [deleteUserId, setDeleteUserId] = useState(null);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const res = await api.get('/api/admin/users');
       setUsers(res.data || []);
     } catch (err) {
-      toast.error('Gagal mengambil data user');
+      if (!isSilent) toast.error('Gagal mengambil data user');
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchUsers();
+    fetchUsers(false);
+    const interval = setInterval(() => {
+      fetchUsers(true);
+    }, 4000);
+    return () => clearInterval(interval);
   }, []);
 
   const openCreateModal = () => {
@@ -126,13 +131,15 @@ export default function Users() {
         <DataTable headers={headers} isLoading={loading}>
           {users.map((u) => (
             <tr key={u.id} className="hover:bg-white/5 transition-colors">
-              <td className="p-4 text-xs font-mono text-slate-400">#{u.id}</td>
-              <td className="p-4 font-bold text-white flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-blue-400" />
-                {u.username}
+              <td className="p-4 text-xs font-mono text-slate-400 text-center">#{u.id}</td>
+              <td className="p-4 font-bold text-white text-center">
+                <div className="flex items-center justify-center gap-2">
+                  <UserCheck className="w-4 h-4 text-blue-400 shrink-0" />
+                  <span>{u.username}</span>
+                </div>
               </td>
-              <td className="p-4 text-slate-300 text-sm">{u.fullname || '-'}</td>
-              <td className="p-4">
+              <td className="p-4 text-slate-200 text-sm text-center">{u.fullname || '-'}</td>
+              <td className="p-4 text-center">
                 <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase border ${
                   u.role === 'pengawas'
                     ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
@@ -142,28 +149,30 @@ export default function Users() {
                   {u.role}
                 </span>
               </td>
-              <td className="p-4">
+              <td className="p-4 text-center">
                 <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                   u.is_active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
                 }`}>
                   {u.is_active ? 'Aktif' : 'Non-Aktif'}
                 </span>
               </td>
-              <td className="p-4 flex items-center gap-2">
-                <button
-                  onClick={() => openEditModal(u)}
-                  className="p-2 text-xs font-semibold text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-lg hover:bg-blue-500 hover:text-white transition-all"
-                  title="Edit User"
-                >
-                  <Edit className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => setDeleteUserId(u.id)}
-                  className="p-2 text-xs font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg hover:bg-rose-500 hover:text-white transition-all"
-                  title="Hapus User"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+              <td className="p-4 text-center">
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => openEditModal(u)}
+                    className="p-2 text-xs font-semibold text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-xl hover:bg-blue-500 hover:text-white transition-all cursor-pointer"
+                    title="Edit User"
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setDeleteUserId(u.id)}
+                    className="p-2 text-xs font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl hover:bg-rose-500 hover:text-white transition-all cursor-pointer"
+                    title="Hapus User"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

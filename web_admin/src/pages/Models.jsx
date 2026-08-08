@@ -224,25 +224,16 @@ export default function Models() {
                   {/* Detail Label Button */}
                   <button
                     onClick={() => handleOpenDetail(m.part_no)}
-                    className="p-2 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg hover:bg-emerald-500 hover:text-white transition-all"
+                    className="p-2 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl hover:bg-emerald-500 hover:text-white transition-all cursor-pointer"
                     title="Lihat Detail Label & Rule"
                   >
                     <Eye className="w-3.5 h-3.5" />
                   </button>
 
-                  {/* Download Model Button */}
-                  <button
-                    onClick={() => handleDownloadModel(m.part_no)}
-                    className="p-2 text-xs font-semibold text-purple-400 bg-purple-500/10 border border-purple-500/20 rounded-lg hover:bg-purple-500 hover:text-white transition-all"
-                    title="Download File .pt"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                  </button>
-
                   {/* Edit Name Button */}
                   <button
                     onClick={() => openEditModal(m)}
-                    className="p-2 text-xs font-semibold text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-lg hover:bg-blue-500 hover:text-white transition-all"
+                    className="p-2 text-xs font-semibold text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-xl hover:bg-blue-500 hover:text-white transition-all cursor-pointer"
                     title="Edit Nama Part"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
@@ -251,7 +242,7 @@ export default function Models() {
                   {/* Delete Button */}
                   <button
                     onClick={() => setDeletePartNo(m.part_no)}
-                    className="p-2 text-xs font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg hover:bg-rose-500 hover:text-white transition-all"
+                    className="p-2 text-xs font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl hover:bg-rose-500 hover:text-white transition-all cursor-pointer"
                     title="Hapus Model"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

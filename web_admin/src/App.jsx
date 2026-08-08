@@ -61,22 +61,25 @@ function MainLayout() {
   );
 }
 
-// Protected Route for Pengawas Only
+// Protected Route for Pengawas / Admin Only
 function PengawasOnlyRoute() {
-  const role = localStorage.getItem('user_role') || 'pengawas';
-  if (role === 'operator') {
+  const rawRole = (localStorage.getItem('user_role') || 'pengawas').toLowerCase();
+  if (rawRole === 'operator') {
     return <Navigate to="/history" replace />;
   }
   return <Outlet />;
 }
 
 function DefaultHomeRedirect() {
-  const role = localStorage.getItem('user_role') || 'pengawas';
-  if (role === 'operator') {
+  const rawRole = (localStorage.getItem('user_role') || 'pengawas').toLowerCase();
+  if (rawRole === 'operator') {
     return <Navigate to="/history" replace />;
   }
   return <Navigate to="/dashboard" replace />;
 }
+
+import ErrorBoundary from './components/ErrorBoundary';
+import ErrorPage from './pages/ErrorPage';
 
 export default function App() {
   useEffect(() => {
@@ -84,43 +87,51 @@ export default function App() {
   }, []);
 
   return (
-    <BrowserRouter basename="/admin">
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          style: {
-            background: 'rgba(15, 23, 42, 0.9)',
-            color: '#fff',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            backdropFilter: 'blur(12px)',
-          },
-        }}
-      />
-      <Routes>
-        <Route path="/login" element={<Login />} />
+    <ErrorBoundary>
+      <BrowserRouter basename="/admin">
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            style: {
+              background: 'rgba(15, 23, 42, 0.9)',
+              color: '#fff',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              backdropFilter: 'blur(12px)',
+            },
+          }}
+        />
+        <Routes>
+          <Route path="/login" element={<Login />} />
 
-        {/* Authenticated Layout */}
-        <Route element={<MainLayout />}>
-          <Route path="/" element={<DefaultHomeRedirect />} />
-          
-          {/* History Inspeksi bisa diakses oleh Pengawas & Operator */}
-          <Route path="/history" element={<History />} />
+          {/* Dedicated Error Information Page */}
+          <Route path="/error" element={<ErrorPage />} />
 
-          {/* Fitur & Halaman Pengawas (Full Access) */}
-          <Route element={<PengawasOnlyRoute />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/camera" element={<Camera />} />
-            <Route path="/sison-config" element={<SisonConfig />} />
-            <Route path="/logs" element={<Logs />} />
-            <Route path="/rules" element={<Rules />} />
-            <Route path="/models" element={<Models />} />
-            <Route path="/users" element={<Users />} />
+          {/* Authenticated Layout */}
+          <Route element={<MainLayout />}>
+            <Route path="/" element={<DefaultHomeRedirect />} />
+            
+            {/* History Inspeksi bisa diakses oleh Pengawas & Operator */}
+            <Route path="/history" element={<History />} />
+
+            {/* Fitur & Halaman Pengawas (Full Access) */}
+            <Route element={<PengawasOnlyRoute />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/camera" element={<Camera />} />
+              <Route path="/sison-config" element={<SisonConfig />} />
+              <Route path="/logs" element={<Logs />} />
+              <Route path="/rules" element={<Rules />} />
+              <Route path="/models" element={<Models />} />
+              <Route path="/users" element={<Users />} />
+            </Route>
+
+            {/* 404 Inside Layout */}
+            <Route path="*" element={<ErrorPage type="404" />} />
           </Route>
-        </Route>
 
-        {/* Fallback */}
-        <Route path="*" element={<DefaultHomeRedirect />} />
-      </Routes>
-    </BrowserRouter>
+          {/* Global Fallback Route */}
+          <Route path="*" element={<ErrorPage type="404" />} />
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

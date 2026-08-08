@@ -54,15 +54,13 @@ body {
 /* 👱 Ponytail Global Table Cell Center Alignment */
 table th,
 table td {
-  text-align: center !important;
+  text-align: center;
 }
 
-table td .flex,
-table td.flex {
-  justify-content: center !important;
-}
-
-/* 👱 Ponytail Light Mode Theme Overrides */
+/* ==============================================================
+   👱 PONYTAIL COMPREHENSIVE LIGHT MODE THEME OVERRIDES
+   Ensures 100% crystal-clear readability & high contrast
+============================================================== */
 html.light body,
 html.light .app-bg-gradient,
 html.light .min-h-screen {
@@ -70,59 +68,73 @@ html.light .min-h-screen {
   color: #0f172a !important;
 }
 
+/* Light Mode Containers & Cards */
 html.light .glass-container {
-  background: rgba(255, 255, 255, 0.85) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
   border-color: rgba(0, 0, 0, 0.08) !important;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.06) !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04) !important;
   color: #0f172a !important;
 }
 
 html.light .glass-card {
-  background: rgba(255, 255, 255, 0.95) !important;
-  border-color: rgba(0, 0, 0, 0.08) !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
   color: #0f172a !important;
 }
 
-html.light header h1,
-html.light main .text-white,
-html.light header .text-white,
-html.light .glass-container .text-white,
-html.light .glass-card .text-white {
+/* Light Mode Text High-Contrast Rules */
+html.light h1,
+html.light h2,
+html.light h3,
+html.light h4,
+html.light strong,
+html.light .text-white,
+html.light .text-slate-100,
+html.light .text-slate-200,
+html.light .font-bold {
   color: #0f172a !important;
 }
 
-html.light main .text-slate-400,
-html.light main .text-slate-300,
-html.light header .text-slate-400,
-html.light header .text-slate-300,
-html.light .glass-container .text-slate-400,
-html.light .glass-card .text-slate-400 {
-  color: #475569 !important;
+html.light p,
+html.light label,
+html.light .text-slate-300,
+html.light .text-slate-400 {
+  color: #334155 !important;
 }
 
-thead.sticky {
-  background-color: #0f172a;
+html.light .text-slate-500 {
+  color: #64748b !important;
 }
 
+/* Light Mode Table Headers & Cells */
 html.light thead,
 html.light thead.sticky,
 html.light table th {
   color: #0f172a !important;
-  background-color: #e2e8f0 !important;
-  border-bottom-color: rgba(0, 0, 0, 0.12) !important;
+  background-color: #f1f5f9 !important;
+  border-bottom: 2px solid #cbd5e1 !important;
+  font-weight: 700 !important;
 }
 
 html.light table td {
-  border-bottom-color: rgba(0, 0, 0, 0.05) !important;
+  color: #1e293b !important;
+  border-bottom: 1px solid #e2e8f0 !important;
 }
 
 html.light tr:hover {
-  background-color: rgba(0, 0, 0, 0.03) !important;
+  background-color: #f8fafc !important;
 }
 
+html.light table td .text-slate-400,
+html.light table td .font-mono {
+  color: #334155 !important;
+}
+
+/* Light Mode Inputs, Selects & Search Bars */
 html.light input,
-html.light select {
+html.light select,
+html.light textarea {
   background-color: #ffffff !important;
   color: #0f172a !important;
   border-color: #cbd5e1 !important;
@@ -132,20 +144,108 @@ html.light input::placeholder {
   color: #94a3b8 !important;
 }
 
-html.light main .bg-black\/30,
-html.light main .bg-black\/20,
-html.light .glass-container .bg-black\/30,
-html.light .glass-container .bg-black\/20 {
-  background-color: rgba(241, 245, 249, 0.85) !important;
-  border-color: rgba(0, 0, 0, 0.08) !important;
+/* Light Mode Mini Cards & Containers */
+html.light .bg-black\/30,
+html.light .bg-black\/20,
+html.light .bg-black\/40,
+html.light .bg-black\/50,
+html.light .bg-white\/5,
+html.light .bg-white\/10 {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
 }
 
-html.light main .border-white\/10,
-html.light main .border-white\/5,
-html.light main .border-white\/15,
-html.light header .border-white\/10,
-html.light .glass-container .border-white\/10,
-html.light .glass-card .border-white\/10 {
-  border-color: rgba(0, 0, 0, 0.1) !important;
+html.light .border-white\/10,
+html.light .border-white\/5,
+html.light .border-white\/15,
+html.light .border-white\/20 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Light Mode Modals & Dialogs */
+html.light .fixed.inset-0.bg-black\/80,
+html.light .fixed.inset-0.bg-black\/70,
+html.light .fixed.inset-0.bg-black\/60 {
+  background-color: rgba(15, 23, 42, 0.65) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+html.light .fixed.inset-0 .glass-card,
+html.light .fixed.inset-0 .rounded-2xl,
+html.light .fixed.inset-0 .rounded-3xl {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+  color: #0f172a !important;
+}
+
+/* Light Mode Sidebar & Navbar */
+html.light aside {
+  background-color: #ffffff !important;
+  border-right-color: #e2e8f0 !important;
+}
+
+html.light header {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+
+html.light aside nav a:not(.bg-blue-600) {
+  color: #334155 !important;
+}
+
+html.light aside nav a:not(.bg-blue-600):hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+html.light aside nav a.bg-blue-600 {
+  color: #ffffff !important;
+}
+
+/* Light Mode Action Buttons & Badges */
+html.light .bg-white\/5.border-white\/10 {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
+}
+
+html.light .bg-white\/5.border-white\/10:hover {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+/* Status Badges in Light Mode maintain strong legible contrast */
+html.light .bg-emerald-500\/20 {
+  background-color: #dcfce7 !important;
+  border-color: #86efac !important;
+  color: #15803d !important;
+}
+
+html.light .bg-rose-500\/20,
+html.light .bg-red-500\/20 {
+  background-color: #ffe4e6 !important;
+  border-color: #fca5a5 !important;
+  color: #be123c !important;
+}
+
+html.light .bg-blue-500\/20 {
+  background-color: #dbeafe !important;
+  border-color: #93c5fd !important;
+  color: #1d4ed8 !important;
+}
+
+html.light .bg-amber-500\/20,
+html.light .bg-yellow-500\/20 {
+  background-color: #fef3c7 !important;
+  border-color: #fde68a !important;
+  color: #b45309 !important;
+}
+
+html.light .bg-purple-500\/20 {
+  background-color: #f3e8ff !important;
+  border-color: #d8b4fe !important;
+  color: #7e22ce !important;
 }
 
