@@ -72,32 +72,31 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
           isCollapsed ? 'w-20' : 'w-64'
         }`}
       >
-        {/* Top Header & Branding with Logo */}
+        {/* Top Header & Branding with Logo on Top */}
         <div>
-          <div className={`flex items-center pb-5 border-b border-white/10 mb-6 px-1 ${
-            isCollapsed ? 'flex-col gap-3 justify-center' : 'justify-between'
+          <div className={`flex pb-5 border-b border-white/10 mb-6 px-1 ${
+            isCollapsed ? 'flex-col items-center gap-3 justify-center' : 'items-center justify-between'
           }`}>
-            <div className={`flex items-center gap-2.5 overflow-hidden ${isCollapsed ? 'justify-center' : ''}`}>
+            <div className={`flex flex-col items-center gap-2 overflow-hidden ${isCollapsed ? 'justify-center' : 'flex-1'}`}>
               <img
                 src="LOGO_SUGITY.png"
                 alt="Logo Sugity"
-                className="h-8 w-auto object-contain drop-shadow-md shrink-0"
+                className={`w-auto object-contain drop-shadow-md transition-all ${
+                  isCollapsed ? 'h-7' : 'h-10 mx-auto'
+                }`}
               />
               {!isCollapsed && (
-                <div className="min-w-0">
-                  <h1 className="text-sm font-extrabold text-white tracking-wide leading-tight truncate">
-                    Kamera <span className="text-blue-500">Inspeksi</span>
-                  </h1>
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider truncate">
-                    Admin Portal
-                  </p>
-                </div>
+                <h1 className="text-sm font-extrabold text-white tracking-wide text-center leading-tight">
+                  Kamera <span className="text-blue-500">Inspeksi</span>
+                </h1>
               )}
             </div>
 
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
-              className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center justify-center shrink-0 cursor-pointer"
+              className={`p-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center justify-center shrink-0 cursor-pointer ${
+                isCollapsed ? '' : 'self-start'
+              }`}
               title={isCollapsed ? "Buka Sidebar" : "Lipat Sidebar"}
             >
               {isCollapsed ? <ChevronRight className="w-4 h-4 text-blue-400" /> : <ChevronLeft className="w-4 h-4" />}
