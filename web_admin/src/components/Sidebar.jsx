@@ -72,23 +72,35 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
           isCollapsed ? 'w-20' : 'w-64'
         }`}
       >
-        {/* Top Header & Branding */}
+        {/* Top Header & Branding with Logo */}
         <div>
-          <div className={`flex items-center pb-6 border-b border-white/10 mb-6 px-1 ${
-            isCollapsed ? 'justify-center' : 'justify-between'
+          <div className={`flex items-center pb-5 border-b border-white/10 mb-6 px-1 ${
+            isCollapsed ? 'flex-col gap-3 justify-center' : 'justify-between'
           }`}>
-            <div className={`overflow-hidden ${isCollapsed ? 'hidden' : 'block'}`}>
-              <h1 className="text-base font-bold text-white tracking-wide leading-tight truncate">
-                Inspeksi <span className="text-blue-500">Kamera</span>
-              </h1>
+            <div className={`flex items-center gap-2.5 overflow-hidden ${isCollapsed ? 'justify-center' : ''}`}>
+              <img
+                src="LOGO_SUGITY.png"
+                alt="Logo Sugity"
+                className="h-8 w-auto object-contain drop-shadow-md shrink-0"
+              />
+              {!isCollapsed && (
+                <div className="min-w-0">
+                  <h1 className="text-sm font-extrabold text-white tracking-wide leading-tight truncate">
+                    Kamera <span className="text-blue-500">Inspeksi</span>
+                  </h1>
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider truncate">
+                    Admin Portal
+                  </p>
+                </div>
+              )}
             </div>
 
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
-              className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center justify-center shrink-0"
+              className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center justify-center shrink-0 cursor-pointer"
               title={isCollapsed ? "Buka Sidebar" : "Lipat Sidebar"}
             >
-              {isCollapsed ? <ChevronRight className="w-5 h-5 text-blue-400" /> : <ChevronLeft className="w-4 h-4" />}
+              {isCollapsed ? <ChevronRight className="w-4 h-4 text-blue-400" /> : <ChevronLeft className="w-4 h-4" />}
             </button>
           </div>
 
