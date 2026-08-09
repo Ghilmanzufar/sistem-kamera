@@ -123,7 +123,7 @@ class ModelCache:
 
             print(f"[MODEL CACHE] 🧠 Memuat model format {fmt_type}: {model_path} (Part: {p_no})")
             try:
-                model = YOLO(model_path, verbose=False)
+                model = YOLO(model_path, task="detect", verbose=False)
                 self._cache[cache_key] = model
                 self._cache.move_to_end(cache_key)
 
