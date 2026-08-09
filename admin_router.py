@@ -386,6 +386,7 @@ def get_inspection_logs(
             "detection_status": log.detection_status,
             "confidence_score": log.confidence_score,
             "method": getattr(log, 'method', 'AI') or 'AI',
+            "operator_name": getattr(log, 'operator_name', None) or "-",
             "target_qty": target_qty if target_qty is not None else "-",
             "qty_actual": qty_actual if qty_actual is not None else "-"
         })

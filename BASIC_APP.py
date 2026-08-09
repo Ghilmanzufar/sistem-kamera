@@ -128,6 +128,108 @@ def run_fastapi():
     """Jalankan uvicorn server di background thread"""
     uvicorn.run(app_fastapi, host="0.0.0.0", port=8000, log_level="error")
 
+class ShiftLoginDialog(QDialog):
+    """
+    Dialog Shift Login — muncul di awal aplikasi dan saat 'Ganti Operator'.
+    Semua role (operator/pengawas/admin) diizinkan login ke layar kamera.
+    Tidak bisa di-skip agar layar kamera selalu memiliki identitas operator bertugas.
+    """
+    def __init__(self, parent=None, allow_cancel: bool = False):
+        super().__init__(parent)
+        self.allow_cancel = allow_cancel
+        self.logged_in_fullname = ""
+        self.setWindowTitle("Login Shift Operator")
+        self.setMinimumWidth(420)
+        self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.WindowTitleHint)
+        self.setStyleSheet("""
+            QDialog { background-color: #0f172a; color: white; font-family: 'Segoe UI'; }
+            QLabel { color: #cbd5e1; font-size: 14px; }
+            QLineEdit {
+                background-color: #1e293b; color: white; border: 1px solid #334155;
+                border-radius: 6px; padding: 10px; font-size: 16px;
+            }
+            QLineEdit:focus { border-color: #3b82f6; }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(14)
+        layout.setContentsMargins(30, 28, 30, 28)
+
+        title = QLabel("👤 LOGIN SHIFT KAMERA")
+        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #3b82f6;")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+
+        sub = QLabel("Masukkan Username dan PIN untuk memulai shift kerja")
+        sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sub.setStyleSheet("color: #64748b; font-size: 13px;")
+        layout.addWidget(sub)
+
+        self.username_input = QLineEdit()
+        self.username_input.setPlaceholderText("Username")
+        layout.addWidget(self.username_input)
+
+        self.pin_input = QLineEdit()
+        self.pin_input.setPlaceholderText("PIN / Password")
+        self.pin_input.setEchoMode(QLineEdit.EchoMode.Password)
+        layout.addWidget(self.pin_input)
+
+        self.error_label = QLabel("")
+        self.error_label.setStyleSheet("color: #f87171; font-size: 12px;")
+        self.error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.error_label)
+
+        btn_login = QPushButton("✅  MULAI SHIFT")
+        btn_login.setFixedHeight(48)
+        btn_login.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_login.setStyleSheet(
+            "background-color: #2563eb; color: white; font-size: 16px; "
+            "font-weight: bold; border-radius: 8px;"
+        )
+        btn_login.clicked.connect(self._do_login)
+        layout.addWidget(btn_login)
+
+        if allow_cancel:
+            btn_cancel = QPushButton("Batal")
+            btn_cancel.setFixedHeight(36)
+            btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_cancel.setStyleSheet("background-color: #334155; color: #94a3b8; font-size: 13px; border-radius: 6px;")
+            btn_cancel.clicked.connect(self.reject)
+            layout.addWidget(btn_cancel)
+
+        self.pin_input.returnPressed.connect(self._do_login)
+
+    def _do_login(self):
+        username = self.username_input.text().strip()
+        pin = self.pin_input.text().strip()
+        if not username or not pin:
+            self.error_label.setText("Username dan PIN tidak boleh kosong!")
+            return
+
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.username == username, User.is_active == True).first()
+            if not user or not verify_password(pin, user.password):
+                self.error_label.setText("❌ Username atau PIN salah!")
+                self.pin_input.clear()
+                return
+            if user.role not in ["operator", "pengawas", "admin"]:
+                self.error_label.setText("❌ Role tidak diizinkan!")
+                return
+            # Gunakan fullname jika ada, fallback ke username
+            self.logged_in_fullname = user.fullname.strip() if getattr(user, 'fullname', None) and user.fullname.strip() else username
+            self.accept()
+        except Exception as e:
+            self.error_label.setText(f"Error: {e}")
+        finally:
+            db.close()
+
+    def keyPressEvent(self, event):
+        # Cegah Escape menutup dialog (wajib login)
+        if event.key() == Qt.Key.Key_Escape and not self.allow_cancel:
+            return
+        super().keyPressEvent(event)
+
 class NGValidationDialog(QDialog):
     def __init__(self, pixmap, parent=None):
         super().__init__(parent)
@@ -232,6 +334,9 @@ class YoloApp(QWidget):
         self.current_loaded_p_no = "" # Untuk mendeteksi perubahan part number dari Sison
         self.last_model_mtime = 0.0 # 👱 Ponytail: Mendeteksi jika file .pt diperbarui via Web Admin
         self.ng_popup_active = False
+
+        # === Shift Login Wajib Sebelum Layar Kamera Aktif ===
+        self._run_shift_login(allow_cancel=False)
 
         # UI & Timers
         self.initUI()
@@ -345,16 +450,36 @@ class YoloApp(QWidget):
         status_layout.addWidget(self.info_label)
         
         self.btn_admin = QPushButton("⚙️ DASHBOARD", self)
-        self.btn_admin.setFixedHeight(45)
+        self.btn_admin.setFixedHeight(40)
         self.btn_admin.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_admin.setStyleSheet("background-color: #2563eb; color: white; font-size:16px; font-weight:bold; border-radius: 5px; padding: 0 15px;")
+        self.btn_admin.setStyleSheet("background-color: #2563eb; color: white; font-size:14px; font-weight:bold; border-radius: 5px; padding: 0 14px;")
         self.btn_admin.clicked.connect(self.prompt_admin_dashboard)
 
+        # --- Operator Shift Badge (nama + waktu login) ---
+        self.operator_badge = QLabel("", self)
+        self.operator_badge.setStyleSheet("color: #38bdf8; font-size: 13px; font-weight: bold; border: none; background: transparent;")
+        self.operator_badge.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._update_operator_badge()
+
+        self.btn_ganti_operator = QPushButton("🔄", self)
+        self.btn_ganti_operator.setFixedSize(36, 36)
+        self.btn_ganti_operator.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_ganti_operator.setToolTip("Ganti Operator Shift")
+        self.btn_ganti_operator.setStyleSheet("background-color: #1e3a5f; color: #38bdf8; font-size:16px; font-weight:bold; border-radius: 6px; border: 1px solid #1d4ed8;")
+        self.btn_ganti_operator.clicked.connect(self.change_operator)
+
         right_container = QWidget()
-        right_layout = QHBoxLayout(right_container)
-        right_layout.setContentsMargins(0,0,0,0)
-        right_layout.addStretch()
-        right_layout.addWidget(self.btn_admin)
+        right_layout = QVBoxLayout(right_container)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(4)
+        right_layout.setAlignment(Qt.AlignmentFlag.AlignRight)
+
+        top_row = QHBoxLayout()
+        top_row.addStretch()
+        top_row.addWidget(self.operator_badge)
+        top_row.addWidget(self.btn_ganti_operator)
+        right_layout.addLayout(top_row)
+        right_layout.addWidget(self.btn_admin, alignment=Qt.AlignmentFlag.AlignRight)
 
         hud_layout.addWidget(self.part_name, stretch=1)
         hud_layout.addWidget(status_container, stretch=1)
@@ -443,6 +568,39 @@ class YoloApp(QWidget):
     def prompt_admin_dashboard(self):
         # 👱 Ponytail: Otentikasi dialihkan ke antarmuka Web Admin (tanpa perantara parameter rahasia di URL)
         webbrowser.open("http://localhost:8000/admin/")
+
+    def _run_shift_login(self, allow_cancel: bool = False):
+        """Tampilkan ShiftLoginDialog dan set state.operator_name. Hanya dapat di-skip jika allow_cancel=True."""
+        while True:
+            dialog = ShiftLoginDialog(self, allow_cancel=allow_cancel)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                with state.lock:
+                    state.operator_name = dialog.logged_in_fullname
+                    state.operator_login_time = time.time()
+                print(f"[SHIFT LOGIN] ✅ Operator login: {dialog.logged_in_fullname}")
+                return
+            elif allow_cancel:
+                return  # Batal ganti — pertahankan operator lama
+            # Jika tidak allow_cancel, loop ulang (dialog awal wajib diisi)
+
+    def _update_operator_badge(self):
+        """Refresh teks badge operator di HUD kanan atas dari state."""
+        if not hasattr(self, 'operator_badge'):
+            return
+        with state.lock:
+            name = state.operator_name
+            login_ts = state.operator_login_time
+        if name and login_ts:
+            import datetime as dt
+            waktu_str = dt.datetime.fromtimestamp(login_ts).strftime("%H:%M")
+            self.operator_badge.setText(f"👤 {name}  |  🕒 {waktu_str}")
+        else:
+            self.operator_badge.setText("")
+
+    def change_operator(self):
+        """Ganti operator shift tanpa me-restart aplikasi atau memutus kamera."""
+        self._run_shift_login(allow_cancel=True)
+        self._update_operator_badge()
 
     def trigger_manual_pass(self):
         with state.lock:
@@ -684,7 +842,7 @@ class YoloApp(QWidget):
             print(f"[SYSTEM] Gambar cacat disimpan di: {filename}")
             
             # Log ke database via background thread
-            threading.Thread(target=proses_kamera.log_ng_db, args=(state.id_trans, state.p_no, filename)).start()
+            threading.Thread(target=proses_kamera.log_ng_db, args=(state.id_trans, state.p_no, filename, state.operator_name)).start()
             
             # Gunakan QTimer agar modal dialog tidak memblokir render frame terakhir secara total
             QTimer.singleShot(100, self.show_ng_popup)

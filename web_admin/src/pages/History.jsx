@@ -70,7 +70,7 @@ export default function History() {
   const handleExportCSV = () => {
     if (logs.length === 0) return toast.error('Tidak ada data untuk diexport!');
 
-    const headers = ["ID Log", "Waktu", "ID Transaksi", "Part Number", "Nama Part", "Lot No", "Unique No", "Target Qty", "Actual Qty", "Status Deteksi", "Metode", "Confidence Score"];
+    const headers = ["ID Log", "Waktu", "ID Transaksi", "Part Number", "Nama Part", "Lot No", "Unique No", "Target Qty", "Actual Qty", "Status Deteksi", "Metode", "Confidence Score", "Operator"];
     const rows = logs.map(l => [
       l.id,
       l.created_at ? new Date(l.created_at).toLocaleString() : '-',
@@ -83,7 +83,8 @@ export default function History() {
       l.qty_actual ?? '-',
       l.detection_status || 'OK',
       l.method === 'MANUAL' ? 'Manual Visual' : 'AI Auto',
-      l.confidence_score !== undefined ? `${(l.confidence_score * 100).toFixed(0)}%` : '100%'
+      l.confidence_score !== undefined ? `${(l.confidence_score * 100).toFixed(0)}%` : '100%',
+      `"${l.operator_name || '-'}"`
     ]);
 
     const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
@@ -115,7 +116,7 @@ export default function History() {
   const rawRole = (localStorage.getItem('user_role') || 'pengawas').toLowerCase();
   const isAdminOrPengawas = rawRole === 'admin' || rawRole === 'pengawas';
 
-  const headers = ["# ID", "Waktu", "ID Trans", "Part No", "Target", "Aktual", "Status Deteksi", "Metode", "Confidence", "Aksi"];
+  const headers = ["# ID", "Waktu", "ID Trans", "Part No", "Target", "Aktual", "Status Deteksi", "Metode", "Confidence", "Operator", "Aksi"];
 
   return (
     <div className="space-y-6">
@@ -296,6 +297,9 @@ export default function History() {
                   )}
                 </td>
                 <td className="p-4 font-mono font-medium text-slate-300 text-center">{conf}</td>
+                <td className="p-4 text-center text-xs text-slate-300">
+                  {item.operator_name || <span className="text-slate-500 italic">-</span>}
+                </td>
                 <td className="p-4 text-center flex justify-center">
                   <button
                     onClick={() => setSelectedLog(item)}

@@ -89,6 +89,7 @@ class InspectionLog(Base):
     image_path = Column(String, nullable=True)
     confidence_score = Column(Float)
     method = Column(String, default="AI", server_default="AI")  # 'AI' or 'MANUAL'
+    operator_name = Column(String, nullable=True)  # Nama operator yang sedang bertugas (Shift Login)
     created_at = Column(DateTime, server_default=func.now())
 
 class CameraConfig(Base):

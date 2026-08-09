@@ -14,12 +14,12 @@ from database_config import SessionLocal, Transaction, InspectionLog
 from offline_buffer import save_to_offline_buffer
 from sqlalchemy.sql import func
 
-def log_inspeksi_db(id_trans: str, part_no: str, status_deteksi: str, conf_score: float = 1.0, method: str = "AI"):
+def log_inspeksi_db(id_trans: str, part_no: str, status_deteksi: str, conf_score: float = 1.0, method: str = "AI", operator_name: str = ""):
     """Fungsi helper yang berjalan di background thread untuk mencatat history ke DB (dengan Offline Buffer Fallback)."""
     try:
         with SessionLocal() as db:
             # 1. Catat log inspeksi per item
-            log = InspectionLog(id_trans=id_trans, part_no=part_no, detection_status=status_deteksi, confidence_score=conf_score, method=method)
+            log = InspectionLog(id_trans=id_trans, part_no=part_no, detection_status=status_deteksi, confidence_score=conf_score, method=method, operator_name=operator_name or None)
             db.add(log)
             
             # 2. Update qty actual di tabel transaksi
@@ -38,14 +38,15 @@ def log_inspeksi_db(id_trans: str, part_no: str, status_deteksi: str, conf_score
             "part_no": part_no,
             "detection_status": status_deteksi,
             "confidence_score": conf_score,
-            "method": method
+            "method": method,
+            "operator_name": operator_name
         })
 
-def log_ng_db(id_trans: str, part_no: str, image_path: str):
+def log_ng_db(id_trans: str, part_no: str, image_path: str, operator_name: str = ""):
     """Fungsi helper untuk mencatat history NG ke DB (dengan Offline Buffer Fallback)."""
     try:
         with SessionLocal() as db:
-            log = InspectionLog(id_trans=id_trans, part_no=part_no, detection_status="NG", image_path=image_path, confidence_score=1.0)
+            log = InspectionLog(id_trans=id_trans, part_no=part_no, detection_status="NG", image_path=image_path, confidence_score=1.0, operator_name=operator_name or None)
             db.add(log)
             db.commit()
     except Exception as e:
@@ -53,7 +54,8 @@ def log_ng_db(id_trans: str, part_no: str, image_path: str):
         save_to_offline_buffer("NG_LOG", {
             "id_trans": id_trans,
             "part_no": part_no,
-            "image_path": image_path
+            "image_path": image_path,
+            "operator_name": operator_name
         })
 
 # ==============================================================
@@ -80,6 +82,8 @@ class SystemState:
         self.flip_part_popup: bool = False # trigger instruksi "Balik Part" ke operator
         self.last_inspection_details: dict = {} # 🐎 ponytail: Menyimpan detail inspeksi terakhir
         self.completed_time: float = 0.0
+        self.operator_name: str = ""       # Nama lengkap operator yang sedang bertugas (Shift Login)
+        self.operator_login_time: float = 0.0  # Timestamp login shift untuk HUD badge
 
     def reset_to_standby(self):
         with self.lock:
@@ -269,7 +273,7 @@ class KameraProses:
                         "found_labels": "- INSPEKSI VISUAL OPERATOR : OK"
                     }
                 
-                threading.Thread(target=log_inspeksi_db, args=(cur_id, cur_pno, "OK", 1.0, "MANUAL")).start()
+                threading.Thread(target=log_inspeksi_db, args=(cur_id, cur_pno, "OK", 1.0, "MANUAL", state.operator_name)).start()
                 
                 if rem_qty <= 0:
                     with state.lock:
@@ -287,7 +291,7 @@ class KameraProses:
                     state.status = "NG"
                     cur_pno = state.p_no
                     cur_id = state.id_trans
-                threading.Thread(target=log_inspeksi_db, args=(cur_id, cur_pno, "NG", 0.0, "MANUAL")).start()
+                threading.Thread(target=log_inspeksi_db, args=(cur_id, cur_pno, "NG", 0.0, "MANUAL", state.operator_name)).start()
                 threading.Thread(target=kirim_sison.SisonSender.send_callback, args=(cur_id, 2)).start()
                 pesan_ui = "STATUS: NG (MANUAL REJECT)! INPUT PIN UNTUK VALIDASI."
                 color_status = (0, 0, 255)
@@ -434,7 +438,7 @@ class KameraProses:
                             state.qty -= 1
                             state.current_side = "F"  # reset ke Front untuk part berikutnya
                             state.part_ok_popup = True
-                            threading.Thread(target=log_inspeksi_db, args=(state.id_trans, state.p_no, "OK", current_avg_conf, "AI")).start()
+                            threading.Thread(target=log_inspeksi_db, args=(state.id_trans, state.p_no, "OK", current_avg_conf, "AI", state.operator_name)).start()
                             
                             if state.qty <= 0:
                                 state.status = "COMPLETED"
@@ -460,7 +464,7 @@ class KameraProses:
                         "avg_confidence": "95%",
                         "found_labels": "- MOCK COMPONENT : 95%"
                     }
-                threading.Thread(target=log_inspeksi_db, args=(cur_id, cur_pno, "OK", 0.95, "AI")).start()
+                threading.Thread(target=log_inspeksi_db, args=(cur_id, cur_pno, "OK", 0.95, "AI", state.operator_name)).start()
                 if rem_qty <= 0:
                     with state.lock:
                         state.status = "COMPLETED"
