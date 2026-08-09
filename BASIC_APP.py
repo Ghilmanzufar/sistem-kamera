@@ -134,9 +134,8 @@ class ShiftLoginDialog(QDialog):
     Semua role (operator/pengawas/admin) diizinkan login ke layar kamera.
     Jika tombol close (X) ditekan pada login awal, aplikasi akan keluar secara aman.
     """
-    def __init__(self, parent=None, allow_cancel: bool = False):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.allow_cancel = allow_cancel
         self.logged_in_fullname = ""
         self.setWindowTitle("Login Operator")
         self.setMinimumWidth(420)
@@ -188,14 +187,6 @@ class ShiftLoginDialog(QDialog):
         )
         btn_login.clicked.connect(self._do_login)
         layout.addWidget(btn_login)
-
-        if allow_cancel:
-            btn_cancel = QPushButton("Batal")
-            btn_cancel.setFixedHeight(36)
-            btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn_cancel.setStyleSheet("background-color: #334155; color: #94a3b8; font-size: 13px; border-radius: 6px;")
-            btn_cancel.clicked.connect(self.reject)
-            layout.addWidget(btn_cancel)
 
         self.pin_input.returnPressed.connect(self._do_login)
 
@@ -329,8 +320,8 @@ class YoloApp(QWidget):
         self.last_model_mtime = 0.0 # 👱 Ponytail: Mendeteksi jika file .pt diperbarui via Web Admin
         self.ng_popup_active = False
 
-        # === Shift Login Wajib Sebelum Layar Kamera Aktif ===
-        self._run_shift_login(allow_cancel=False)
+        # === Login Operator Wajib Sebelum Layar Kamera Aktif ===
+        self._run_shift_login()
 
         # UI & Timers
         self.initUI()
@@ -449,18 +440,11 @@ class YoloApp(QWidget):
         self.btn_admin.setStyleSheet("background-color: #2563eb; color: white; font-size:14px; font-weight:bold; border-radius: 5px; padding: 0 14px;")
         self.btn_admin.clicked.connect(self.prompt_admin_dashboard)
 
-        # --- Operator Shift Badge (nama + waktu login) ---
+        # --- Operator Badge (nama + waktu login) ---
         self.operator_badge = QLabel("", self)
         self.operator_badge.setStyleSheet("color: #38bdf8; font-size: 13px; font-weight: bold; border: none; background: transparent;")
         self.operator_badge.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self._update_operator_badge()
-
-        self.btn_ganti_operator = QPushButton("🔄", self)
-        self.btn_ganti_operator.setFixedSize(36, 36)
-        self.btn_ganti_operator.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_ganti_operator.setToolTip("Ganti Operator")
-        self.btn_ganti_operator.setStyleSheet("background-color: #1e3a5f; color: #38bdf8; font-size:16px; font-weight:bold; border-radius: 6px; border: 1px solid #1d4ed8;")
-        self.btn_ganti_operator.clicked.connect(self.change_operator)
 
         right_container = QWidget()
         right_layout = QVBoxLayout(right_container)
@@ -468,11 +452,7 @@ class YoloApp(QWidget):
         right_layout.setSpacing(4)
         right_layout.setAlignment(Qt.AlignmentFlag.AlignRight)
 
-        top_row = QHBoxLayout()
-        top_row.addStretch()
-        top_row.addWidget(self.operator_badge)
-        top_row.addWidget(self.btn_ganti_operator)
-        right_layout.addLayout(top_row)
+        right_layout.addWidget(self.operator_badge, alignment=Qt.AlignmentFlag.AlignRight)
         right_layout.addWidget(self.btn_admin, alignment=Qt.AlignmentFlag.AlignRight)
 
         hud_layout.addWidget(self.part_name, stretch=1)
@@ -563,17 +543,14 @@ class YoloApp(QWidget):
         # 👱 Ponytail: Otentikasi dialihkan ke antarmuka Web Admin (tanpa perantara parameter rahasia di URL)
         webbrowser.open("http://localhost:8000/admin/")
 
-    def _run_shift_login(self, allow_cancel: bool = False):
+    def _run_shift_login(self):
         """Tampilkan dialog login operator dan set state.operator_name. Jika dialog ditutup pada login awal, aplikasi akan keluar."""
-        dialog = ShiftLoginDialog(self, allow_cancel=allow_cancel)
+        dialog = ShiftLoginDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             with state.lock:
                 state.operator_name = dialog.logged_in_fullname
                 state.operator_login_time = time.time()
             print(f"[LOGIN] ✅ Operator login: {dialog.logged_in_fullname}")
-            return
-        elif allow_cancel:
-            return  # Batal ganti — pertahankan operator lama
         else:
             # Login awal dibatalkan / ditutup via tombol X atau Esc
             print("[SYSTEM] Login dibatalkan oleh pengguna. Menutup aplikasi...")
@@ -594,11 +571,6 @@ class YoloApp(QWidget):
             self.operator_badge.setText(f"👤 {name}  |  🕒 {waktu_str}")
         else:
             self.operator_badge.setText("")
-
-    def change_operator(self):
-        """Ganti operator shift tanpa me-restart aplikasi atau memutus kamera."""
-        self._run_shift_login(allow_cancel=True)
-        self._update_operator_badge()
 
     def trigger_manual_pass(self):
         with state.lock:
