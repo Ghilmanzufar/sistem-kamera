@@ -9,7 +9,8 @@ import {
   Users, 
   Camera, 
   Settings, 
-  FileText, 
+  FileText,
+  Activity, 
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -41,6 +42,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
   const allNavItems = [
     { to: "/dashboard", label: "Live Dashboard", icon: LayoutDashboard, roles: ['pengawas', 'admin'] },
     { to: "/history", label: "History Inspeksi", icon: History, roles: ['pengawas', 'admin', 'operator'] },
+    { to: "/system-health", label: "Status Sistem", icon: Activity, roles: ['pengawas', 'admin'] },
     { to: "/rules", label: "Setting Rule", icon: Sliders, roles: ['pengawas', 'admin'] },
     { to: "/models", label: "Model AI (.pt)", icon: BrainCircuit, roles: ['pengawas', 'admin'] },
     { to: "/users", label: "User Manajemen", icon: Users, roles: ['pengawas', 'admin'] },
