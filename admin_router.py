@@ -137,6 +137,100 @@ class LoginSchema(BaseModel):
     username: str
     password: str
 
+SERVER_START_TIME = time.time()
+
+def _get_uptime_string(seconds: float) -> str:
+    s = int(seconds)
+    hours = s // 3600
+    minutes = (s % 3600) // 60
+    secs = s % 60
+    if hours > 0:
+        return f"{hours}h {minutes}m {secs}s"
+    elif minutes > 0:
+        return f"{minutes}m {secs}s"
+    return f"{secs}s"
+
+@public_router.get("/health")
+def get_system_health(db: Session = Depends(get_db)):
+    """
+    👱 Ponytail Industrial Telemetry:
+    Endpoint observabilitas terpadu untuk memantau status Database, Buffer Queue, Disk Storage, Model AI, dan Uptime.
+    """
+    now = time.time()
+    uptime_sec = round(now - SERVER_START_TIME, 1)
+    
+    # 1. Database Health & Latency
+    db_status = "CONNECTED"
+    db_latency_ms = 0.0
+    try:
+        t0 = time.time()
+        from sqlalchemy import text
+        db.execute(text("SELECT 1"))
+        db_latency_ms = round((time.time() - t0) * 1000, 1)
+    except Exception as e:
+        db_status = f"ERROR: {str(e)}"
+
+    # 2. Offline Buffer Queue Status
+    from offline_buffer import get_buffered_count
+    buffer_queue = get_buffered_count()
+
+    # 3. Disk Space Telemetry (Standard Library shutil)
+    try:
+        total_b, used_b, free_b = shutil.disk_usage(os.getcwd())
+        total_gb = round(total_b / (1024**3), 2)
+        free_gb = round(free_b / (1024**3), 2)
+        used_gb = round(used_b / (1024**3), 2)
+        used_pct = round((used_b / total_b) * 100, 1)
+        free_pct = round((free_b / total_b) * 100, 1)
+        is_disk_low = free_pct < 10.0
+    except Exception:
+        total_gb, free_gb, used_gb, used_pct, free_pct, is_disk_low = 0, 0, 0, 0, 0, False
+
+    # 4. State & AI Model Telemetry
+    from proses_kamera import state, model_cache
+    with state.lock:
+        app_status = state.status
+        active_part = state.p_no
+        qty_progress = f"{state.target_qty - state.qty}/{state.target_qty}" if state.target_qty > 0 else "-"
+        inspection_mode = getattr(state, "inspection_mode", "AI")
+
+    # Evaluasi status sistem menyeluruh
+    is_healthy = (db_status == "CONNECTED") and not is_disk_low
+    overall_status = "HEALTHY" if is_healthy else ("DEGRADED" if not is_disk_low else "DISK_SPACE_LOW")
+
+    return {
+        "status": overall_status,
+        "timestamp": datetime.now().isoformat(),
+        "uptime": {
+            "seconds": uptime_sec,
+            "human": _get_uptime_string(uptime_sec)
+        },
+        "database": {
+            "status": db_status,
+            "latency_ms": db_latency_ms,
+            "offline_buffer_unsynced_count": buffer_queue
+        },
+        "inspection_engine": {
+            "system_state": app_status,
+            "active_part_no": active_part or "STANDBY",
+            "progress": qty_progress,
+            "mode": inspection_mode,
+            "cached_models_count": len(model_cache._cache)
+        },
+        "disk_storage": {
+            "total_gb": total_gb,
+            "used_gb": used_gb,
+            "free_gb": free_gb,
+            "used_percent": used_pct,
+            "free_percent": free_pct,
+            "is_low_space_warning": is_disk_low
+        },
+        "network": {
+            "local_ip": _get_local_ip(),
+            "port": 8000
+        }
+    }
+
 @public_router.post("/admin-login")
 def admin_login(creds: LoginSchema, request: Request, db: Session = Depends(get_db)):
     """👱 Ponytail: Endpoint otentikasi dengan proteksi Brute-Force Rate Limiter & Token Expiration 10 Menit."""
