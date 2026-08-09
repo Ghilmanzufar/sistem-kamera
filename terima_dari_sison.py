@@ -24,14 +24,16 @@ def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)
         db.close()
 
 
+from typing import Optional
+
 # --- VALIDASI DATA MASUK (SCHEMAS) ---
 class StartRequest(BaseModel):
     id_trans: str
-    lot: str
     p_no: str
-    unique_no: str
-    p_name: str
-    qty: int
+    lot: Optional[str] = "-"
+    unique_no: Optional[str] = "-"
+    p_name: Optional[str] = "-"
+    qty: Optional[int] = 1
 
 class OverrideRequest(BaseModel):
     pin: str
@@ -39,21 +41,35 @@ class OverrideRequest(BaseModel):
 # --- PINTU MASUK API (ROUTES) ---
 @router.post("/start")
 def api_start(req: StartRequest, db: Session = Depends(get_db), _: None = Depends(verify_api_key)):
+    # 👱 Ponytail: Validasi cepat field wajib
+    id_trans = (req.id_trans or "").strip()
+    p_no = (req.p_no or "").strip()
+    if not id_trans:
+        raise HTTPException(status_code=400, detail="Field 'id_trans' wajib diisi (Tidak boleh kosong)!")
+    if not p_no:
+        raise HTTPException(status_code=400, detail="Field 'p_no' (Part Number) wajib diisi!")
+
+    # Sanitasi nilai aman (auto-fallback default)
+    qty = max(1, int(req.qty or 1))
+    lot = (req.lot or "-").strip() or "-"
+    unique_no = (req.unique_no or "-").strip() or "-"
+    p_name = (req.p_name or "-").strip() or "-"
+
     # --- CATAT TRANSAKSI KE DATABASE ---
-    existing_trans = db.query(Transaction).filter(Transaction.id_trans == req.id_trans).first()
+    existing_trans = db.query(Transaction).filter(Transaction.id_trans == id_trans).first()
     if existing_trans:
-        existing_trans.target_qty = req.qty
+        existing_trans.target_qty = qty
         existing_trans.qty_actual = 0
         existing_trans.status = 2  # 👱 Ponytail: 2 = PROSES / RUNNING (sesuai spesifikasi workflow.md)
         existing_trans.start_time = func.now()
     else:
         new_trans = Transaction(
-            id_trans=req.id_trans,
-            part_no=req.p_no,
-            part_name=req.p_name,
-            lot_no=req.lot,
-            unique_no=req.unique_no,
-            target_qty=req.qty,
+            id_trans=id_trans,
+            part_no=p_no,
+            part_name=p_name,
+            lot_no=lot,
+            unique_no=unique_no,
+            target_qty=qty,
             qty_actual=0,
             status=2,  # 👱 Ponytail: 2 = PROSES / RUNNING
             start_time=func.now()

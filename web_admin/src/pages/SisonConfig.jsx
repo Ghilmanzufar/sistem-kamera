@@ -14,7 +14,13 @@ import {
   FileCode, 
   CheckCircle,
   HelpCircle,
-  Cpu
+  Cpu,
+  Wifi,
+  Radio,
+  Send,
+  AlertCircle,
+  RefreshCw,
+  Server
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/client';
@@ -23,14 +29,18 @@ import PageHeader from '../components/PageHeader';
 export default function SisonConfig() {
   const [callbackUrl, setCallbackUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
+  const [serverIp, setServerIp] = useState('127.0.0.1');
   const [showApiKey, setShowApiKey] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testingPing, setTestingPing] = useState(false);
+  const [pingResult, setPingResult] = useState(null);
 
   // Copy states
   const [copiedPayload, setCopiedPayload] = useState(false);
   const [copiedCurl, setCopiedCurl] = useState(false);
   const [copiedKey, setCopiedKey] = useState(false);
+  const [copiedIp, setCopiedIp] = useState(false);
 
   const fetchSisonConfig = async () => {
     try {
@@ -38,6 +48,7 @@ export default function SisonConfig() {
       if (res.data) {
         setCallbackUrl(res.data.callback_url || '');
         setApiKey(res.data.api_key || 'kamera-secret-key');
+        if (res.data.server_ip) setServerIp(res.data.server_ip);
       }
     } catch (err) {
       toast.error('Gagal memuat konfigurasi Sison');
@@ -64,6 +75,31 @@ export default function SisonConfig() {
       toast.error('Gagal menyimpan konfigurasi Sison');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTestPing = async () => {
+    if (!callbackUrl || !callbackUrl.trim()) {
+      toast.error('Masukkan Callback Webhook URL terlebih dahulu!');
+      return;
+    }
+    setTestingPing(true);
+    setPingResult(null);
+
+    try {
+      const res = await api.post('/api/admin/sison-test-ping', { callback_url: callbackUrl });
+      setPingResult(res.data);
+      if (res.data && res.data.success) {
+        toast.success(`Server SISON Terhubung! (Status: ${res.data.status_code}, Latency: ${res.data.latency_ms}ms)`);
+      } else {
+        toast.error(`Koneksi SISON Gagal: ${res.data?.error || 'Tidak ada respon'}`);
+      }
+    } catch (err) {
+      const errMsg = err.response?.data?.detail || err.message || 'Gagal menghubungi server SISON';
+      setPingResult({ success: false, error: errMsg });
+      toast.error(`Uji Webhook Gagal: ${errMsg}`);
+    } finally {
+      setTestingPing(false);
     }
   };
 
@@ -142,9 +178,31 @@ export default function SisonConfig() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
-                Callback Webhook URL (Tujuan Kirim Hasil Inspeksi ke SISON)
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">
+                  Callback Webhook URL (Tujuan Kirim Hasil Inspeksi ke SISON)
+                </label>
+                <button
+                  type="button"
+                  onClick={handleTestPing}
+                  disabled={testingPing || !callbackUrl}
+                  className="flex items-center gap-1.5 px-3 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-lg text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
+                  title="Kirim paket ping tes ke server SISON untuk menguji konektivitas"
+                >
+                  {testingPing ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menguji...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Radio className="w-3.5 h-3.5" />
+                      <span>🧪 Uji Koneksi Callback</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
               <input
                 type="text"
                 required
@@ -153,8 +211,33 @@ export default function SisonConfig() {
                 placeholder="http://192.168.1.50:8000/api/inspection/result"
                 className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-xl text-white font-mono text-sm focus:outline-none focus:border-blue-500 transition-all"
               />
+
+              {/* Ping Result Feedback Box */}
+              {pingResult && (
+                <div className={`mt-2.5 p-3 rounded-xl border text-xs font-mono flex items-start gap-2 ${
+                  pingResult.success 
+                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' 
+                    : 'bg-rose-500/10 border-rose-500/20 text-rose-300'
+                }`}>
+                  {pingResult.success ? <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" /> : <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />}
+                  <div className="space-y-0.5">
+                    <span className="font-bold">
+                      {pingResult.success 
+                        ? `✅ Server SISON Terhubung (HTTP ${pingResult.status_code} | Latensi: ${pingResult.latency_ms} ms)`
+                        : `❌ Gagal Terhubung ke SISON (${pingResult.error}) | Latensi: ${pingResult.latency_ms} ms`
+                      }
+                    </span>
+                    <p className="text-[11px] text-slate-300 font-sans">
+                      {pingResult.success 
+                        ? 'Endpoint Webhook SISON aktif dan siap menerima data hasil inspeksi.'
+                        : 'Pastikan server SISON sedang menyala dan alamat IP/Port sudah sesuai.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <p className="text-[11px] text-slate-400 mt-1.5">
-                URL endpoint di server SISON yang akan menerima kiriman status (OK/NG) saat inspeksi selesai.
+                URL endpoint di server SISON yang akan menerima kiriman status (OK/NG) saat inspeksi selesai. Dilengkapi <strong>Auto-Retry 3x</strong> otomatis jika terjadi gangguan jaringan sesaat.
               </p>
             </div>
 
@@ -216,15 +299,29 @@ export default function SisonConfig() {
                 <ShieldCheck className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">Status Konektivitas</h3>
-                <p className="text-xs text-slate-400">Parameter port & protokol</p>
+                <h3 className="text-base font-bold text-white">Status Jaringan & Server</h3>
+                <p className="text-xs text-slate-400">Parameter port & protokol aktif</p>
               </div>
             </div>
 
             <div className="space-y-2.5 text-xs">
-              <div className="flex justify-between p-2.5 bg-black/30 rounded-xl border border-white/5">
-                <span className="text-slate-400 font-medium">Protokol:</span>
-                <span className="font-mono font-bold text-white">REST HTTP/1.1</span>
+              <div className="flex justify-between items-center p-2.5 bg-black/30 rounded-xl border border-white/5">
+                <span className="text-slate-400 font-medium">IP PC Kamera:</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono font-bold text-emerald-400">{serverIp}</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(serverIp);
+                      setCopiedIp(true);
+                      toast.success('IP PC Kamera disalin!');
+                      setTimeout(() => setCopiedIp(false), 2000);
+                    }}
+                    className="text-slate-400 hover:text-white cursor-pointer"
+                    title="Salin IP"
+                  >
+                    {copiedIp ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
               <div className="flex justify-between p-2.5 bg-black/30 rounded-xl border border-white/5">
                 <span className="text-slate-400 font-medium">Port Server:</span>
@@ -235,19 +332,24 @@ export default function SisonConfig() {
                 <span className="font-mono font-bold text-blue-300">Bearer Token</span>
               </div>
               <div className="flex justify-between p-2.5 bg-black/30 rounded-xl border border-white/5">
+                <span className="text-slate-400 font-medium">Keandalan Webhook:</span>
+                <span className="font-mono font-bold text-emerald-400">Auto-Retry (3x)</span>
+              </div>
+              <div className="flex justify-between p-2.5 bg-black/30 rounded-xl border border-white/5">
                 <span className="text-slate-400 font-medium">Format Payload:</span>
                 <span className="font-mono font-bold text-amber-300">application/json</span>
               </div>
             </div>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 space-y-1">
-            <div className="font-bold flex items-center gap-1.5">
-              <CheckCircle className="w-4 h-4" />
-              Server Siap Menerima Transaksi
+          {/* Rekomendasi Jaringan IT Pabrik */}
+          <div className="p-3.5 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-300 space-y-1.5">
+            <div className="font-bold flex items-center gap-1.5 text-white">
+              <Server className="w-4 h-4 text-blue-400" />
+              Rekomendasi IT & Jaringan
             </div>
-            <p className="text-[11px] text-slate-300">
-              Endpoint REST API aktif dan siap menerima panggilan dari server SISON.
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              Gunakan <strong>Static IP</strong> pada PC Kamera atau kunci <strong>DHCP Reservation (MAC Address Binding)</strong> di router agar IP tidak pernah berubah saat PC restart.
             </p>
           </div>
         </div>

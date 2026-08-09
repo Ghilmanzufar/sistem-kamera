@@ -728,9 +728,26 @@ def delete_camera(cam_id: int, db: Session = Depends(get_db), uname: str = Depen
 
 
 # --- SISON CONFIG API ---
+import socket
+from kirim_ke_sison import SisonSender
+
+def _get_local_ip() -> str:
+    """Ambil IP lokal PC saat ini."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
 class SisonConfigUpdate(BaseModel):
     callback_url: str
     api_key: str
+
+class SisonTestPingRequest(BaseModel):
+    callback_url: str
 
 def _get_or_create_sison_config(db: Session) -> SisonConfig:
     """Ambil config Sison (singleton). Buat baris default jika belum ada."""
@@ -745,7 +762,12 @@ def _get_or_create_sison_config(db: Session) -> SisonConfig:
 @router.get("/sison-config")
 def get_sison_config(db: Session = Depends(get_db)):
     cfg = _get_or_create_sison_config(db)
-    return {"callback_url": cfg.callback_url, "api_key": cfg.api_key}
+    return {
+        "callback_url": cfg.callback_url,
+        "api_key": cfg.api_key,
+        "server_ip": _get_local_ip(),
+        "server_port": 8000
+    }
 
 @router.put("/sison-config")
 def update_sison_config(data: SisonConfigUpdate, db: Session = Depends(get_db), uname: str = Depends(get_current_user_name)):
@@ -755,3 +777,11 @@ def update_sison_config(data: SisonConfigUpdate, db: Session = Depends(get_db), 
     db.commit()
     log_audit_event(db, uname, "UPDATE_SISON_CONFIG", f"Mengubah konfigurasi Sison Callback ke {data.callback_url}")
     return {"success": True, "message": "Konfigurasi Sison berhasil disimpan"}
+
+@router.post("/sison-test-ping")
+def test_sison_ping(req: SisonTestPingRequest):
+    """👱 Ponytail: Uji konektivitas webhook ke endpoint server SISON."""
+    if not req.callback_url or not req.callback_url.startswith("http"):
+        raise HTTPException(status_code=400, detail="URL Webhook tidak valid (harus diawali http:// atau https://)")
+    res = SisonSender.test_ping(req.callback_url)
+    return res
