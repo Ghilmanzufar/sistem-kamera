@@ -120,6 +120,7 @@ app_fastapi.include_router(admin_router.public_router, prefix="/api")
 
 app_fastapi.include_router(admin_router.router, prefix="/api/admin")
 os.makedirs("web_admin/dist", exist_ok=True)
+os.makedirs("ng_records", exist_ok=True)
 app_fastapi.mount("/admin", SPAStaticFiles(directory="web_admin/dist", html=True), name="admin")
 app_fastapi.mount("/ng_records", StaticFiles(directory="ng_records"), name="ng_records")
 # ----------------------------------------
