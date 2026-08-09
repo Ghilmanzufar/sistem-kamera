@@ -344,7 +344,7 @@ class YoloApp(QWidget):
         status_layout.addWidget(self.status_label)
         status_layout.addWidget(self.info_label)
         
-        self.btn_admin = QPushButton("⚙️ ADMIN DASHBOARD", self)
+        self.btn_admin = QPushButton("⚙️ DASHBOARD", self)
         self.btn_admin.setFixedHeight(45)
         self.btn_admin.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_admin.setStyleSheet("background-color: #2563eb; color: white; font-size:16px; font-weight:bold; border-radius: 5px; padding: 0 15px;")
