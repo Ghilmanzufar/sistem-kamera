@@ -1,8 +1,5 @@
-"""
-Backward-compatibility bridge for offline_buffer.
-Fungsionalitas telah dimodularisasi ke dalam package `integrations.offline_sync`.
-"""
-from integrations.offline_sync import (
+from .sison_client import SisonSender, get_callback_url
+from .offline_sync import (
     init_offline_buffer,
     save_to_offline_buffer,
     get_buffered_count,
@@ -11,6 +8,8 @@ from integrations.offline_sync import (
 )
 
 __all__ = [
+    "SisonSender",
+    "get_callback_url",
     "init_offline_buffer",
     "save_to_offline_buffer",
     "get_buffered_count",
