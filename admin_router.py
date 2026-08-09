@@ -19,12 +19,46 @@ from datetime import datetime, timedelta
 
 admin_security = HTTPBearer()
 
+def _get_secret_key() -> str:
+    """
+    👱 Ponytail Security: Ambil SECRET_KEY dari environment (.env).
+    Jika belum ada atau masih bernilai default rentan, buat token acak 64-karakter dan simpan ke .env secara otomatis.
+    """
+    secret = os.getenv("SECRET_KEY", "").strip()
+    if not secret or secret == "sugity_super_secret_key_2026":
+        env_path = os.path.join(os.getcwd(), ".env")
+        new_secret = secrets.token_hex(32)
+        
+        env_lines = []
+        key_found = False
+        if os.path.exists(env_path):
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("SECRET_KEY="):
+                        env_lines.append(f"SECRET_KEY={new_secret}\n")
+                        key_found = True
+                    else:
+                        env_lines.append(line)
+        if not key_found:
+            env_lines.append(f"\nSECRET_KEY={new_secret}\n")
+        
+        try:
+            with open(env_path, "w", encoding="utf-8") as f:
+                f.writelines(env_lines)
+            os.environ["SECRET_KEY"] = new_secret
+            print(f"[SECURITY] 🔒 Secret key aman (64-char) berhasil di-generate dan disimpan ke .env!")
+            return new_secret
+        except Exception:
+            os.environ["SECRET_KEY"] = new_secret
+            return new_secret
+    return secret
+
 def create_admin_token(username: str, role: str, expires_in_seconds: Optional[int] = None) -> str:
     """👱 Ponytail Token Generator: Buat signed token dengan timestamp kedaluwarsa (Default 10 Menit)."""
     if expires_in_seconds is None:
         expire_minutes = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10"))
         expires_in_seconds = expire_minutes * 60
-    secret = os.getenv("SECRET_KEY", "sugity_super_secret_key_2026")
+    secret = _get_secret_key()
     exp = int(time.time()) + expires_in_seconds
     payload = {"u": username, "r": role, "exp": exp}
     payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
@@ -32,7 +66,7 @@ def create_admin_token(username: str, role: str, expires_in_seconds: Optional[in
     return f"{payload_b64}.{sig}"
 
 def decode_and_verify_token(token: str) -> dict:
-    secret = os.getenv("SECRET_KEY", "sugity_super_secret_key_2026")
+    secret = _get_secret_key()
     parts = token.split(".")
     if len(parts) == 1 and secrets.compare_digest(token, secret):
         return {"u": "pengawas", "r": "pengawas", "exp": int(time.time()) + 600}
@@ -74,21 +108,52 @@ def get_current_user_name(credentials: HTTPAuthorizationCredentials = Depends(ad
 router = APIRouter(dependencies=[Depends(verify_admin_auth)])
 public_router = APIRouter()
 
+# --- RATE LIMITER (BRUTE FORCE PROTECTION) ---
+_failed_login_attempts = defaultdict(list)
+import threading
+_login_rate_lock = threading.Lock()
+
+def _check_rate_limit(client_ip: str):
+    now = time.time()
+    with _login_rate_lock:
+        _failed_login_attempts[client_ip] = [t for t in _failed_login_attempts[client_ip] if now - t < 60]
+        if len(_failed_login_attempts[client_ip]) >= 5:
+            time_left = int(60 - (now - _failed_login_attempts[client_ip][0]))
+            raise HTTPException(
+                status_code=429, 
+                detail=f"Terlalu banyak percobaan login gagal. Silakan tunggu {max(1, time_left)} detik sebelum mencoba lagi."
+            )
+
+def _record_failed_attempt(client_ip: str):
+    with _login_rate_lock:
+        _failed_login_attempts[client_ip].append(time.time())
+
+def _clear_failed_attempts(client_ip: str):
+    with _login_rate_lock:
+        if client_ip in _failed_login_attempts:
+            del _failed_login_attempts[client_ip]
+
 class LoginSchema(BaseModel):
     username: str
     password: str
 
 @public_router.post("/admin-login")
-def admin_login(creds: LoginSchema, db: Session = Depends(get_db)):
-    """👱 Ponytail: Endpoint otentikasi dengan Token Expiration 10 Menit."""
+def admin_login(creds: LoginSchema, request: Request, db: Session = Depends(get_db)):
+    """👱 Ponytail: Endpoint otentikasi dengan proteksi Brute-Force Rate Limiter & Token Expiration 10 Menit."""
+    client_ip = request.client.host if request.client else "unknown"
+    _check_rate_limit(client_ip)
+
     user = db.query(User).filter(User.username == creds.username).first()
     if not user or not verify_password(creds.password, user.password):
+        _record_failed_attempt(client_ip)
         raise HTTPException(status_code=401, detail="Username atau PIN salah!")
     if not getattr(user, 'is_active', True) or user.role not in ["pengawas", "operator"]:
+        _record_failed_attempt(client_ip)
         raise HTTPException(status_code=403, detail="Akun tidak berwenang mengakses Dashboard!")
     
+    _clear_failed_attempts(client_ip)
     token = create_admin_token(user.username, user.role)
-    log_audit_event(db, user.username, "LOGIN", f"Berhasil masuk sebagai {user.role.upper()}")
+    log_audit_event(db, user.username, "LOGIN", f"Berhasil masuk sebagai {user.role.upper()} (IP: {client_ip})")
     return {"token": token, "role": user.role, "username": user.username}
 
 @router.post("/logout")

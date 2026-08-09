@@ -20,7 +20,7 @@ if hasattr(cv2, 'setLogLevel'):
 
 import uvicorn
 import requests
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
@@ -99,6 +99,20 @@ class SPAStaticFiles(StaticFiles):
 
 # Setup FastAPI App
 app_fastapi = FastAPI(title="Sistem Kamera API")
+
+@app_fastapi.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """👱 Ponytail: Tambahkan HTTP Security Headers standar industri untuk proteksi web."""
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
 app_fastapi.include_router(camera_router, prefix="/api")
 app_fastapi.include_router(admin_router.public_router, prefix="/api")
 
