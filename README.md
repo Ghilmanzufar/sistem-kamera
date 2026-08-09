@@ -2,7 +2,7 @@
 
 Sistem inspeksi visual otomatis berbasis **Deep Learning (YOLOv8)** dan **Computer Vision (OpenCV)** yang terintegrasi secara real-time dengan antarmuka desktop **PyQt6**, backend **FastAPI**, dan **Web Admin Dashboard (React + Vite + TailwindCSS)**. 
 
-Dirancang khusus untuk lini produksi manufaktur otomotif guna memverifikasi kelengkapan komponen (*defect detection*), menghitung target QTY, serta berkomunikasi dua arah dengan sistem **SISON (Manufacturing Execution System / MES Pabrik)**.
+Dirancang khusus untuk lini produksi manufaktur otomotif guna memverifikasi kelengkapan komponen (*defect detection*), menghitung target QTY, serta berkomunikasi dua arah dengan sistem **SISON**.
 
 ---
 
@@ -13,10 +13,10 @@ Dirancang khusus untuk lini produksi manufaktur otomotif guna memverifikasi kele
 * **Manajemen State Transaksi:** Siklus status inspeksi `STANDBY` ➡️ `RUNNING` ➡️ `OK` / `NG` ➡️ `COMPLETED`.
 * **Alarm Abnormality (Sirene NG):** Pengambilan otomatis foto bukti part cacat ke folder `ng_records/` dan dialog validasi pengawas.
 
-### 2. ⚡ Integrasi Sistem SISON (MES Pabrik)
+### 2. ⚡ Integrasi Sistem SISON
 * **Pemicu Transaksi (`POST /api/start`):** Menerima data payload part dari SISON (`id_trans`, `lot`, `p_no`, `unique_no`, `p_name`, `qty`) yang diamankan dengan **Bearer API Key**.
 * **Callback Webhook:** Mengirimkan kembali hasil verifikasi status inspeksi secara otomatis ke server SISON.
-* **Simulator Interaktif:** Tombol **🚀 DEMO SISON** dan **📷 MOCK DETECT** langsung di antarmuka desktop untuk pengujian mandiri tanpa menunggu server MES eksternal.
+* **Simulator Interaktif:** Tombol **🚀 DEMO SISON** dan **📷 MOCK DETECT** langsung di antarmuka desktop untuk pengujian mandiri tanpa menunggu server SISON eksternal.
 
 ### 3. 🔌 Kontrol Hardware Kamera Dinamis
 * **Saklar Power ON / OFF:** Memutus (*release*) dan menyalakan (*open*) feed video kamera secara instan dari Web Admin tanpa perlu me-restart aplikasi.
@@ -38,7 +38,7 @@ Dirancang khusus untuk lini produksi manufaktur otomotif guna memverifikasi kele
 
 ```
 +-----------------------------------------------------------------------------------+
-|                            SISTEM SISON / MES PABRIK                              |
+|                                   SISTEM SISON                                    |
 +-----------------------------------------------------------------------------------+
                                    │  HTTP REST (Bearer API Key)
                                    ▼
@@ -159,7 +159,7 @@ python BASIC_APP.py
 ## 🔌 Spesifikasi API Integrasi SISON
 
 ### `POST /api/start`
-Digunakan oleh MES/SISON untuk memicu transaksi inspeksi baru.
+Digunakan oleh sistem SISON untuk memicu transaksi inspeksi baru.
 
 * **Headers:**
   ```http

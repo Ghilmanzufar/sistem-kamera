@@ -154,7 +154,7 @@ export default function SisonConfig() {
                 className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-xl text-white font-mono text-sm focus:outline-none focus:border-blue-500 transition-all"
               />
               <p className="text-[11px] text-slate-400 mt-1.5">
-                URL endpoint di server SISON/MES pabrik yang akan menerima kiriman status (OK/NG) saat inspeksi selesai.
+                URL endpoint di server SISON yang akan menerima kiriman status (OK/NG) saat inspeksi selesai.
               </p>
             </div>
 
@@ -247,7 +247,7 @@ export default function SisonConfig() {
               Server Siap Menerima Transaksi
             </div>
             <p className="text-[11px] text-slate-300">
-              Endpoint REST API aktif dan siap menerima panggilan dari MES pabrik atau PLC.
+              Endpoint REST API aktif dan siap menerima panggilan dari server SISON.
             </p>
           </div>
         </div>
@@ -288,7 +288,7 @@ export default function SisonConfig() {
           </div>
 
           <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
-            Endpoint ini dipanggil oleh sistem SISON / MES ketika part baru masuk ke stasiun kerja kamera untuk memulai proses deteksi dan verifikasi komponen.
+            Endpoint ini dipanggil oleh sistem SISON ketika part baru masuk ke stasiun kerja kamera untuk memulai proses deteksi dan verifikasi komponen.
           </p>
 
           {/* Headers Spec */}

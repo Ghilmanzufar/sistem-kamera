@@ -39,7 +39,7 @@ export default function ForgotPassword() {
         <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-start gap-3">
           <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <span className="font-bold block">Kebijakan Keamanan Sistem Pabrik:</span>
+            <span className="font-bold block">Kebijakan Keamanan Sistem:</span>
             <span className="text-slate-200 leading-relaxed block">
               Demi keamanan lini produksi dan mencegah akses tidak terotorisasi, reset password/PIN <strong>tidak dilakukan secara mandiri</strong>.
             </span>
@@ -58,7 +58,7 @@ export default function ForgotPassword() {
               <span className="text-emerald-400 font-bold text-sm shrink-0">1.</span>
               <div>
                 <strong className="text-white block mb-0.5">Panggil Pengawas (Line Supervisor) atau Admin:</strong>
-                <span>Hubungi Pengawas yang sedang bertugas di shift Anda atau PIC IT sistem inspeksi pabrik.</span>
+                <span>Hubungi Pengawas yang sedang bertugas di shift Anda atau PIC IT sistem inspeksi.</span>
               </div>
             </div>
 

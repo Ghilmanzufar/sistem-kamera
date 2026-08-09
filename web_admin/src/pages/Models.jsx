@@ -280,7 +280,7 @@ export default function Models() {
 
               <div>
                 <h4 className="font-bold text-white mb-3 text-base flex justify-between items-center">
-                  <span>Daftar Komponen Wajib ({selectedDetail.komponen_count} label)</span>
+                  <span>Daftar Labelname Wajib ({selectedDetail.komponen_count} label)</span>
                 </h4>
 
                 <div className="max-h-64 overflow-y-auto space-y-2 pr-1 scrollbar-thin">

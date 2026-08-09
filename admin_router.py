@@ -19,8 +19,11 @@ from datetime import datetime, timedelta
 
 admin_security = HTTPBearer()
 
-def create_admin_token(username: str, role: str, expires_in_seconds: int = 300) -> str:
-    """👱 Ponytail Token Generator: Buat signed token dengan timestamp kedaluwarsa (Default 5 Menit)."""
+def create_admin_token(username: str, role: str, expires_in_seconds: Optional[int] = None) -> str:
+    """👱 Ponytail Token Generator: Buat signed token dengan timestamp kedaluwarsa (Default 10 Menit)."""
+    if expires_in_seconds is None:
+        expire_minutes = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10"))
+        expires_in_seconds = expire_minutes * 60
     secret = os.getenv("SECRET_KEY", "sugity_super_secret_key_2026")
     exp = int(time.time()) + expires_in_seconds
     payload = {"u": username, "r": role, "exp": exp}
@@ -32,7 +35,7 @@ def decode_and_verify_token(token: str) -> dict:
     secret = os.getenv("SECRET_KEY", "sugity_super_secret_key_2026")
     parts = token.split(".")
     if len(parts) == 1 and secrets.compare_digest(token, secret):
-        return {"u": "pengawas", "r": "pengawas", "exp": int(time.time()) + 300}
+        return {"u": "pengawas", "r": "pengawas", "exp": int(time.time()) + 600}
     if len(parts) != 2:
         raise HTTPException(status_code=401, detail="Format token tidak valid")
     payload_b64, sig = parts
@@ -48,7 +51,7 @@ def decode_and_verify_token(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Payload token tidak dapat dibaca")
         
     if time.time() > payload.get("exp", 0):
-        raise HTTPException(status_code=401, detail="Token telah kedaluwarsa (Batas 5 Menit Habis). Silakan login kembali.")
+        raise HTTPException(status_code=401, detail="Token telah kedaluwarsa (Batas 10 Menit Habis). Silakan login kembali.")
     return payload
 
 def verify_admin_auth(request: Request, credentials: HTTPAuthorizationCredentials = Depends(admin_security)) -> dict:
@@ -77,14 +80,14 @@ class LoginSchema(BaseModel):
 
 @public_router.post("/admin-login")
 def admin_login(creds: LoginSchema, db: Session = Depends(get_db)):
-    """👱 Ponytail: Endpoint otentikasi dengan Token Expiration 5 Menit."""
+    """👱 Ponytail: Endpoint otentikasi dengan Token Expiration 10 Menit."""
     user = db.query(User).filter(User.username == creds.username).first()
     if not user or not verify_password(creds.password, user.password):
         raise HTTPException(status_code=401, detail="Username atau PIN salah!")
     if not getattr(user, 'is_active', True) or user.role not in ["pengawas", "operator"]:
         raise HTTPException(status_code=403, detail="Akun tidak berwenang mengakses Dashboard!")
     
-    token = create_admin_token(user.username, user.role, expires_in_seconds=300)
+    token = create_admin_token(user.username, user.role)
     log_audit_event(db, user.username, "LOGIN", f"Berhasil masuk sebagai {user.role.upper()}")
     return {"token": token, "role": user.role, "username": user.username}
 
