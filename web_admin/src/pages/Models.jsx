@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, Edit2, Trash2, Plus, FileCode, CheckCircle, Eye, Download, Info } from 'lucide-react';
+import { Upload, Edit2, Trash2, Plus, FileCode, CheckCircle, Eye, Download, Info, Zap, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 import PageHeader from '../components/PageHeader';
@@ -18,6 +18,7 @@ export default function Models() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [labelPreview, setLabelPreview] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [convertingPartNo, setConvertingPartNo] = useState(null);
 
   // Detail Modal State
   const [selectedDetail, setSelectedDetail] = useState(null);
@@ -56,6 +57,19 @@ export default function Models() {
     setFile(null);
     setLabelPreview(null);
     setShowModal(true);
+  };
+
+  const handleConvertOnnx = async (part_no) => {
+    setConvertingPartNo(part_no);
+    try {
+      const res = await api.post(`/api/admin/models/${encodeURIComponent(part_no)}/convert-onnx`);
+      toast.success(res.data?.message || `Berhasil export ${part_no} ke format ONNX!`);
+      fetchModels();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Gagal mengonversi model ke ONNX');
+    } finally {
+      setConvertingPartNo(null);
+    }
   };
 
   const handleFileChange = async (e) => {
@@ -106,7 +120,7 @@ export default function Models() {
         await api.post('/api/admin/models', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
-        toast.success(`Model ${partNo}.pt berhasil diunggah & diperbarui!`);
+        toast.success(`Model ${partNo} berhasil diunggah & diperbarui!`);
       }
       setShowModal(false);
       fetchModels();
@@ -120,7 +134,7 @@ export default function Models() {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!partNo) return toast.error('Masukkan Part Number!');
-    if (!editingPartNo && !file) return toast.error('Pilih file .pt untuk diunggah!');
+    if (!editingPartNo && !file) return toast.error('Pilih file .pt atau .onnx untuk diunggah!');
 
     if (!editingPartNo) {
       const isExisting = models.some(m => m.part_no.toLowerCase() === partNo.trim().toLowerCase());
@@ -149,18 +163,18 @@ export default function Models() {
     const downloadUrl = `/api/admin/models/${encodeURIComponent(part_no)}/download`;
     const link = document.createElement('a');
     link.href = downloadUrl;
-    link.setAttribute('download', `${part_no}.pt`);
+    link.setAttribute('download', `${part_no}`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success(`Mengunduh berkas ${part_no}.pt...`);
+    toast.success(`Mengunduh berkas model ${part_no}...`);
   };
 
   const handleDeleteModel = async () => {
     if (!deletePartNo) return;
     try {
       await api.delete(`/api/admin/models/${deletePartNo}`);
-      toast.success(`Model ${deletePartNo}.pt telah dihapus`);
+      toast.success(`Model ${deletePartNo} telah dihapus`);
       fetchModels();
     } catch (err) {
       toast.error('Gagal menghapus model');
@@ -169,14 +183,14 @@ export default function Models() {
     }
   };
 
-  const headers = ["Part Number", "Nama File", "Ukuran File", "Waktu Update", "Status", "Aksi"];
+  const headers = ["Part Number", "Format & Engine", "Waktu Update", "Status", "Aksi"];
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Model"
-        highlightTitle="AI (.pt)"
-        subtitle="Manajemen berkas bobot model deteksi YOLOv8"
+        highlightTitle="AI (.pt & .onnx)"
+        subtitle="Manajemen berkas bobot model deteksi YOLOv8 dengan akselerasi ONNX Engine"
         actionButton={
           <button
             onClick={openUploadModal}
@@ -198,11 +212,26 @@ export default function Models() {
                   <span>{m.part_no}</span>
                 </div>
               </td>
-              <td className="p-4 text-slate-300 font-mono text-xs text-center">{m.filename}</td>
               <td className="p-4 text-center">
-                <span className="inline-block px-2.5 py-1 bg-black/30 border border-white/10 rounded-lg font-mono text-xs font-semibold text-amber-400">
-                  {m.size_mb} MB
-                </span>
+                {m.has_onnx ? (
+                  <div className="flex flex-col items-center gap-1">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30 text-xs">
+                      <Zap className="w-3.5 h-3.5 text-amber-400" />
+                      ONNX Engine ({m.onnx_size_mb} MB)
+                    </span>
+                    {m.has_pt && (
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        PT Backup: {m.pt_size_mb} MB
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-1">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/20 text-blue-300 font-bold border border-blue-500/30 text-xs">
+                      PyTorch PT ({m.pt_size_mb} MB)
+                    </span>
+                  </div>
+                )}
               </td>
               <td className="p-4 text-xs text-slate-300 font-mono text-center">
                 {m.last_modified || '-'}
@@ -221,6 +250,28 @@ export default function Models() {
               </td>
               <td className="p-4 text-center">
                 <div className="flex items-center justify-center gap-1.5">
+                  {/* Convert to ONNX Button (if has PT but no ONNX) */}
+                  {m.has_pt && !m.has_onnx && (
+                    <button
+                      onClick={() => handleConvertOnnx(m.part_no)}
+                      disabled={convertingPartNo === m.part_no}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-purple-300 bg-purple-500/20 border border-purple-500/40 rounded-xl hover:bg-purple-500 hover:text-white transition-all cursor-pointer disabled:opacity-50"
+                      title="Convert Model .pt ke ONNX ultra-ringan"
+                    >
+                      {convertingPartNo === m.part_no ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Exporting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-3.5 h-3.5 text-amber-400" />
+                          <span>⚡ Export ONNX</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+
                   {/* Detail Label Button */}
                   <button
                     onClick={() => handleOpenDetail(m.part_no)}
@@ -329,18 +380,18 @@ export default function Models() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
           <div className="w-full max-w-xl p-8 glass-card border border-white/15 rounded-3xl shadow-2xl space-y-6">
             <h3 className="text-2xl font-bold text-white mb-6">
-              {editingPartNo ? 'Rename Model Part' : 'Upload Model AI (.pt)'}
+              {editingPartNo ? 'Rename Model Part' : 'Upload Model AI (.pt / .onnx)'}
             </h3>
 
             <form onSubmit={handleSubmit} className="space-y-5">
               {!editingPartNo && (
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                    Berkas Model YOLO (.pt)
+                    Berkas Model YOLO (.pt atau .onnx)
                   </label>
                   <input
                     type="file"
-                    accept=".pt"
+                    accept=".pt,.onnx"
                     required
                     onChange={handleFileChange}
                     className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white text-base file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"

@@ -135,13 +135,26 @@ class ModelCache:
         if not os.path.exists(weights_dir):
             os.makedirs(weights_dir)
 
-        model_path = os.path.join(weights_dir, f"{p_no}.pt")
-        
-        if not os.path.exists(model_path):
-            # Fallback ke yolov8n.pt jika ada
-            default_path = os.path.join(weights_dir, "yolov8n.pt")
-            if os.path.exists(default_path):
-                model_path = default_path
+        # Prioritas 1: Format ONNX (Lebih ringan & cepat), Prioritas 2: Format PT
+        onnx_path = os.path.join(weights_dir, f"{p_no}.onnx")
+        pt_path = os.path.join(weights_dir, f"{p_no}.pt")
+
+        if os.path.exists(onnx_path):
+            model_path = onnx_path
+            fmt_type = "ONNX"
+        elif os.path.exists(pt_path):
+            model_path = pt_path
+            fmt_type = "PyTorch PT"
+        else:
+            # Fallback ke default yolov8n jika tersedia
+            default_onnx = os.path.join(weights_dir, "yolov8n.onnx")
+            default_pt = os.path.join(weights_dir, "yolov8n.pt")
+            if os.path.exists(default_onnx):
+                model_path = default_onnx
+                fmt_type = "ONNX Default"
+            elif os.path.exists(default_pt):
+                model_path = default_pt
+                fmt_type = "PyTorch Default"
             else:
                 return None
 
@@ -150,7 +163,7 @@ class ModelCache:
         except OSError:
             mtime = 0.0
 
-        cache_key = (p_no, mtime)
+        cache_key = (p_no, mtime, model_path)
 
         with self._lock:
             if cache_key in self._cache:
@@ -158,13 +171,13 @@ class ModelCache:
                 self._cache.move_to_end(cache_key)
                 return self._cache[cache_key]
 
-            # Invalidate versi lama dari part yang sama jika mtime berubah
+            # Invalidate versi lama dari part yang sama jika mtime/format berubah
             keys_to_remove = [k for k in self._cache if k[0] == p_no]
             for k in keys_to_remove:
                 del self._cache[k]
 
             # Muat model baru dari disk ke RAM
-            print(f"[MODEL CACHE] 🧠 Memuat model ke RAM Memory: {model_path} (Part: {p_no})")
+            print(f"[MODEL CACHE] 🧠 Memuat model format {fmt_type}: {model_path} (Part: {p_no})")
             try:
                 model = YOLO(model_path, verbose=False)
                 self._cache[cache_key] = model

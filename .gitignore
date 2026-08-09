@@ -4,5 +4,6 @@ __pycache__/
 *.pyc
 .vscode/
 *.pt
+*.onnx
 ng_records/*.jpg
 *.db
