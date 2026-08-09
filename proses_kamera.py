@@ -82,8 +82,10 @@ class SystemState:
         self.flip_part_popup: bool = False # trigger instruksi "Balik Part" ke operator
         self.last_inspection_details: dict = {} # 🐎 ponytail: Menyimpan detail inspeksi terakhir
         self.completed_time: float = 0.0
-        self.operator_name: str = ""       # Nama lengkap operator yang sedang bertugas (Shift Login)
-        self.operator_login_time: float = 0.0  # Timestamp login shift untuk HUD badge
+        self.operator_name: str = ""       # Nama lengkap operator yang sedang bertugas
+        self.operator_username: str = ""   # Username akun operator (untuk SSO Dashboard)
+        self.operator_role: str = ""       # Role akun operator (operator/pengawas/admin)
+        self.operator_login_time: float = 0.0  # Timestamp login untuk HUD badge
 
     def reset_to_standby(self):
         with self.lock:

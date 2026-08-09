@@ -16,21 +16,36 @@ import {
   ChevronLeft,
   ChevronRight,
   Sun,
-  Moon
+  Moon,
+  Lock,
+  ShieldCheck
 } from 'lucide-react';
 import api from '../api/client';
 import ConfirmModal from './ConfirmModal';
+import SupervisorLoginModal from './SupervisorLoginModal';
 import { getStoredTheme, toggleTheme } from '../utils/theme';
 
 export default function Sidebar({ isCollapsed, setIsCollapsed }) {
   const navigate = useNavigate();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showSupervisorModal, setShowSupervisorModal] = useState(false);
   const [themeMode, setThemeMode] = useState(getStoredTheme());
   const [diskInfo, setDiskInfo] = useState(null);
-  const username = localStorage.getItem('username') || 'Admin';
   
-  const rawRole = (localStorage.getItem('user_role') || 'pengawas').toLowerCase();
-  const effectiveRole = (rawRole === 'admin' || rawRole === 'pengawas') ? 'pengawas' : rawRole;
+  const [userRole, setUserRole] = useState((localStorage.getItem('user_role') || 'pengawas').toLowerCase());
+  const [userName, setUserName] = useState(localStorage.getItem('username') || 'Admin');
+  
+  const effectiveRole = (userRole === 'admin' || userRole === 'pengawas') ? 'pengawas' : userRole;
+
+  useEffect(() => {
+    // Sinkronisasi role & username jika ada update di localStorage
+    const handleStorageChange = () => {
+      setUserRole((localStorage.getItem('user_role') || 'pengawas').toLowerCase());
+      setUserName(localStorage.getItem('username') || 'Admin');
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   useEffect(() => {
     setThemeMode(getStoredTheme());
@@ -65,8 +80,15 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
   ];
 
   const visibleNavItems = allNavItems.filter(item => 
-    item.roles.includes(rawRole) || item.roles.includes(effectiveRole)
+    item.roles.includes(userRole) || item.roles.includes(effectiveRole)
   );
+
+  const handleSupervisorSuccess = (data) => {
+    setUserRole(data.role.toLowerCase());
+    setUserName(data.username);
+    setShowSupervisorModal(false);
+    navigate('/dashboard');
+  };
 
   const handleLogout = async () => {
     try {
@@ -140,6 +162,22 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
                 </NavLink>
               );
             })}
+
+            {/* Tombol Login Pengawas / Admin Khusus untuk Role Operator */}
+            {userRole === 'operator' && (
+              <div className="pt-2">
+                <button
+                  onClick={() => setShowSupervisorModal(true)}
+                  className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold transition-all border bg-gradient-to-r from-amber-500/15 to-orange-500/15 text-amber-300 border-amber-500/40 hover:bg-amber-500/25 hover:border-amber-500/70 hover:text-amber-200 shadow-lg shadow-amber-500/10 cursor-pointer ${
+                    isCollapsed ? 'justify-center px-0' : ''
+                  }`}
+                  title="Login Pengawas / Admin"
+                >
+                  <Lock className="w-5 h-5 text-amber-400 shrink-0" />
+                  {!isCollapsed && <span className="truncate">Login Pengawas</span>}
+                </button>
+              </div>
+            )}
           </nav>
         </div>
 
@@ -189,11 +227,11 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
           {!isCollapsed && (
             <div className="flex items-center justify-between px-2 py-1.5 rounded-xl bg-black/20 border border-white/5">
               <div className="truncate">
-                <p className="text-xs font-semibold text-white truncate">{username}</p>
+                <p className="text-xs font-semibold text-white truncate">{userName}</p>
                 <span className={`inline-block text-[9px] uppercase font-bold px-1.5 py-0.5 rounded ${
                   effectiveRole === 'pengawas' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                 }`}>
-                  {rawRole}
+                  {userRole}
                 </span>
               </div>
               <div className="flex items-center gap-1">
@@ -244,6 +282,12 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
         isDanger={true}
         onConfirm={handleLogout}
         onCancel={() => setShowLogoutModal(false)}
+      />
+
+      <SupervisorLoginModal
+        isOpen={showSupervisorModal}
+        onClose={() => setShowSupervisorModal(false)}
+        onSuccess={handleSupervisorSuccess}
       />
     </>
   );

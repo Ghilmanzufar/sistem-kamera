@@ -136,6 +136,8 @@ class ShiftLoginDialog(QDialog):
     """
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.logged_in_username = ""
+        self.logged_in_role = ""
         self.logged_in_fullname = ""
         self.setWindowTitle("Login Operator")
         self.setMinimumWidth(420)
@@ -207,7 +209,9 @@ class ShiftLoginDialog(QDialog):
             if user.role not in ["operator", "pengawas", "admin"]:
                 self.error_label.setText("❌ Role tidak diizinkan!")
                 return
-            # Gunakan fullname jika ada, fallback ke username
+            # Simpan username, role, dan fullname
+            self.logged_in_username = user.username
+            self.logged_in_role = user.role
             self.logged_in_fullname = user.fullname.strip() if getattr(user, 'fullname', None) and user.fullname.strip() else username
             self.accept()
         except Exception as e:
@@ -540,8 +544,13 @@ class YoloApp(QWidget):
                 QMessageBox.critical(self, "Error Jaringan", f"Gagal menghubungi server lokal: {e}")
 
     def prompt_admin_dashboard(self):
-        # 👱 Ponytail: Otentikasi dialihkan ke antarmuka Web Admin (tanpa perantara parameter rahasia di URL)
-        webbrowser.open("http://localhost:8000/admin/")
+        # 👱 Ponytail: SSO langsung ke Dashboard sesuai role operator yang sedang login di layar kamera
+        from admin_router import create_admin_token
+        with state.lock:
+            uname = state.operator_username or "op"
+            urole = state.operator_role or "operator"
+        token = create_admin_token(username=uname, role=urole, expires_in_seconds=86400)
+        webbrowser.open(f"http://localhost:8000/admin/?sso={token}&u={uname}&r={urole}")
 
     def _run_shift_login(self):
         """Tampilkan dialog login operator dan set state.operator_name. Jika dialog ditutup pada login awal, aplikasi akan keluar."""
@@ -549,8 +558,10 @@ class YoloApp(QWidget):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             with state.lock:
                 state.operator_name = dialog.logged_in_fullname
+                state.operator_username = dialog.logged_in_username
+                state.operator_role = dialog.logged_in_role
                 state.operator_login_time = time.time()
-            print(f"[LOGIN] ✅ Operator login: {dialog.logged_in_fullname}")
+            print(f"[LOGIN] ✅ Operator login: {dialog.logged_in_fullname} (User: {dialog.logged_in_username}, Role: {dialog.logged_in_role})")
         else:
             # Login awal dibatalkan / ditutup via tombol X atau Esc
             print("[SYSTEM] Login dibatalkan oleh pengguna. Menutup aplikasi...")

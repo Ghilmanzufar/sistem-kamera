@@ -17,6 +17,28 @@ import Logs from './pages/Logs';
 import SystemHealth from './pages/SystemHealth';
 import { initTheme } from './utils/theme';
 
+function processSSOParams() {
+  try {
+    const search = window.location.search;
+    if (search) {
+      const params = new URLSearchParams(search);
+      const ssoToken = params.get('sso') || params.get('token');
+      const u = params.get('u');
+      const r = params.get('r');
+      if (ssoToken) {
+        localStorage.setItem('admin_token', ssoToken);
+        if (u) localStorage.setItem('username', u);
+        if (r) localStorage.setItem('user_role', r);
+        const cleanUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    }
+  } catch (e) {
+    console.error("SSO Param error", e);
+  }
+}
+processSSOParams();
+
 function isTokenValid(token) {
   if (!token) return false;
   try {
