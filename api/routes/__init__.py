@@ -17,13 +17,14 @@ public_router.include_router(auth_router)
 
 # Router terproteksi admin (dengan dependency verify_admin_auth)
 admin_protected_router = APIRouter(dependencies=[Depends(verify_admin_auth)])
-admin_protected_router.include_router(inspection_router)
-admin_protected_router.include_router(camera_router)
-admin_protected_router.include_router(model_router)
-admin_protected_router.include_router(rule_router)
-admin_protected_router.include_router(user_router)
-admin_protected_router.include_router(sison_config_router)
-admin_protected_router.include_router(system_router)
+admin_protected_router.include_router(auth_router) # Support POST /api/admin/logout
+admin_protected_router.include_router(system_router) # /transactions, /audit-logs
+admin_protected_router.include_router(inspection_router) # /inspection-logs
+admin_protected_router.include_router(rule_router) # /rules, /global-rule
+admin_protected_router.include_router(model_router) # /models, /models/{part_no}/*
+admin_protected_router.include_router(user_router) # /users
+admin_protected_router.include_router(camera_router) # /cameras, /cameras/scan, /cameras/{id}/*
+admin_protected_router.include_router(sison_config_router) # /sison-config, /sison-test-ping
 
 __all__ = [
     "sison_inbound_router",

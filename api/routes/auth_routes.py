@@ -1,9 +1,18 @@
-import shutil
+import os
 import time
+import socket
+import shutil
+from datetime import datetime
+from typing import Optional
+
 from fastapi import APIRouter, Request, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import text
+
 from database import get_db, User, verify_password, log_audit_event
+from integrations import get_buffered_count
+from core import state, model_cache
 from api.auth import (
     create_admin_token,
     verify_admin_auth,
@@ -19,7 +28,18 @@ class LoginSchema(BaseModel):
     username: str
     password: str
 
-def _get_uptime_string(seconds: float) -> str:
+def get_local_ip() -> str:
+    """Ambil IP lokal PC saat ini."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+def get_uptime_string(seconds: float) -> str:
     s = int(seconds)
     hours = s // 3600
     minutes = (s % 3600) // 60
@@ -31,36 +51,93 @@ def _get_uptime_string(seconds: float) -> str:
     return f"{secs}s"
 
 @router.get("/health")
-def health_check():
-    """Health check dan informasi sisa kapasitas penyimpanan harddisk."""
+def get_system_health(db: Session = Depends(get_db)):
+    """Telemetry status lengkap untuk frontend SystemHealth & Sidebar."""
+    now = time.time()
+    uptime_sec = round(now - SERVER_START_TIME, 1)
+    
+    # 1. Database Health & Latency
+    db_status = "CONNECTED"
+    db_latency_ms = 0.0
     try:
-        total, used, free = shutil.disk_usage(".")
-        free_gb = round(free / (1024 ** 3), 2)
-        total_gb = round(total / (1024 ** 3), 2)
-        used_gb = round(used / (1024 ** 3), 2)
-        free_pct = round((free / total) * 100, 1)
-        used_pct = round((used / total) * 100, 1)
+        t0 = time.time()
+        db.execute(text("SELECT 1"))
+        db_latency_ms = round((time.time() - t0) * 1000, 1)
+    except Exception as e:
+        db_status = f"ERROR: {str(e)}"
+
+    # 2. Offline Buffer Queue Status
+    buffer_queue = get_buffered_count()
+
+    # 3. Disk Space Telemetry
+    try:
+        total_b, used_b, free_b = shutil.disk_usage(os.getcwd())
+        total_gb = round(total_b / (1024**3), 2)
+        free_gb = round(free_b / (1024**3), 2)
+        used_gb = round(used_b / (1024**3), 2)
+        used_pct = round((used_b / total_b) * 100, 1)
+        free_pct = round((free_b / total_b) * 100, 1)
+        is_disk_low = free_pct < 10.0
     except Exception:
-        free_gb, total_gb, used_gb, free_pct, used_pct = 0, 0, 0, 0, 0
+        total_gb, free_gb, used_gb, used_pct, free_pct, is_disk_low = 0, 0, 0, 0, 0, False
+
+    # 4. State & AI Model Telemetry
+    with state.lock:
+        app_status = state.status
+        active_part = state.p_no
+        qty_progress = f"{state.target_qty - state.qty}/{state.target_qty}" if state.target_qty > 0 else "-"
+        inspection_mode = getattr(state, "inspection_mode", "AI")
+
+    is_healthy = (db_status == "CONNECTED") and not is_disk_low
+    overall_status = "HEALTHY" if is_healthy else ("DEGRADED" if not is_disk_low else "DISK_SPACE_LOW")
 
     return {
-        "status": "healthy",
-        "service": "kamera_inspection_backend",
-        "uptime": _get_uptime_string(time.time() - SERVER_START_TIME),
+        "status": overall_status,
+        "timestamp": datetime.now().isoformat(),
+        "uptime": {
+            "seconds": uptime_sec,
+            "human": get_uptime_string(uptime_sec)
+        },
+        "database": {
+            "status": db_status,
+            "latency_ms": db_latency_ms,
+            "offline_buffer_unsynced_count": buffer_queue
+        },
+        "inspection_engine": {
+            "system_state": app_status,
+            "active_part_no": active_part or "STANDBY",
+            "progress": qty_progress,
+            "mode": inspection_mode,
+            "cached_models_count": len(model_cache._cache)
+        },
         "disk_storage": {
-            "free_gb": free_gb,
             "total_gb": total_gb,
             "used_gb": used_gb,
-            "free_percent": free_pct,
+            "free_gb": free_gb,
             "used_percent": used_pct,
-            "is_low_space_warning": free_pct < 10.0
+            "free_percent": free_pct,
+            "is_low_space_warning": is_disk_low
         },
-        "database": "connected",
         "network": {
-            "host": "localhost",
+            "local_ip": get_local_ip(),
             "port": 8000
         }
     }
+
+@router.get("/status")
+def get_system_status():
+    """Endpoint status cepat untuk memantau status inspeksi yang sedang berjalan."""
+    with state.lock:
+        return {
+            "status": state.status,
+            "id_trans": state.id_trans,
+            "p_no": state.p_no,
+            "qty_remaining": state.qty,
+            "target_qty": state.target_qty,
+            "current_side": state.current_side,
+            "mode": getattr(state, "inspection_mode", "AI"),
+            "operator": state.operator_name
+        }
 
 @router.post("/admin-login")
 def admin_login(creds: LoginSchema, request: Request, db: Session = Depends(get_db)):
@@ -81,9 +158,14 @@ def admin_login(creds: LoginSchema, request: Request, db: Session = Depends(get_
     log_audit_event(db, user.username, "LOGIN", f"Berhasil masuk sebagai {user.role.upper()} (IP: {client_ip})")
     return {"token": token, "role": user.role, "username": user.username}
 
+@router.post("/logout")
+def admin_logout_root(db: Session = Depends(get_db), auth: dict = Depends(verify_admin_auth)):
+    username = auth.get("u", "ADMIN")
+    log_audit_event(db, username, "LOGOUT", "User keluar dari Dashboard")
+    return {"success": True}
+
 @router.post("/admin/logout")
-def admin_logout(db: Session = Depends(get_db), auth: dict = Depends(verify_admin_auth)):
-    """Catat aktivitas keluar (LOGOUT) dari Dashboard."""
+def admin_logout_admin(db: Session = Depends(get_db), auth: dict = Depends(verify_admin_auth)):
     username = auth.get("u", "ADMIN")
     log_audit_event(db, username, "LOGOUT", "User keluar dari Dashboard")
     return {"success": True}

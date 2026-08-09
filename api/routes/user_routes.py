@@ -12,14 +12,14 @@ class UserCreate(BaseModel):
     password: str
     role: str
     fullname: str
-    is_active: Optional[bool] = True
+    is_active: bool = True
 
 class UserUpdate(BaseModel):
     username: str
     password: Optional[str] = None
     role: str
     fullname: str
-    is_active: bool
+    is_active: bool = True
 
 @router.get("/users")
 def get_users(db: Session = Depends(get_db)):
@@ -67,5 +67,5 @@ def delete_user(user_id: int, db: Session = Depends(get_db), uname: str = Depend
     target_username = db_user.username
     db.delete(db_user)
     db.commit()
-    log_audit_event(db, uname, "DELETE_USER", f"Menghapus akun user: {target_username}")
-    return {"message": f"User {target_username} berhasil dihapus"}
+    log_audit_event(db, uname, "DELETE_USER", f"Menghapus user {target_username} (ID: #{user_id})")
+    return {"status": "ok"}

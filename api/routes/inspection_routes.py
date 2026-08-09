@@ -79,4 +79,4 @@ def clear_all_inspection_logs(db: Session = Depends(get_db), auth: dict = Depend
     deleted_count = db.query(InspectionLog).delete()
     log_audit_event(db, username, "DELETE_ALL_INSPECTION_LOGS", f"Menghapus seluruh {deleted_count} data riwayat inspeksi")
     db.commit()
-    return {"message": "Semua riwayat inspeksi berhasil dibersihkan", "deleted_count": deleted_count}
+    return {"success": True, "message": f"Berhasil menghapus {deleted_count} data riwayat inspeksi.", "deleted_count": deleted_count}
