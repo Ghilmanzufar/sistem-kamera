@@ -43,48 +43,48 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen app-bg-gradient flex items-center justify-center p-4">
-      <div className="w-full max-w-lg p-8 sm:p-10 glass-card border border-white/10 rounded-3xl shadow-2xl backdrop-blur-xl">
+    <div className="min-h-screen app-bg-gradient flex items-center justify-center p-4 sm:p-6">
+      <div className="w-full max-w-xl p-8 sm:p-12 glass-card border border-white/15 rounded-3xl shadow-2xl backdrop-blur-xl">
         <div className="text-center mb-8">
           <img
             src="LOGO_SUGITY.png"
             alt="Logo Sugity"
-            className="h-16 w-auto mx-auto mb-4 object-contain drop-shadow-md"
+            className="h-20 w-auto mx-auto mb-4 object-contain drop-shadow-md"
           />
-          <h1 className="text-2xl font-bold text-white tracking-wide">
+          <h1 className="text-3xl font-black text-white tracking-wide">
             Admin <span className="text-blue-500">Dashboard</span>
           </h1>
-          <p className="text-sm text-slate-400 mt-1">Sistem Inspeksi Kamera</p>
+          <p className="text-sm text-slate-300 mt-1.5 font-medium">Sistem Inspeksi Kamera Produksi</p>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          <div className="mb-6 p-4 rounded-2xl bg-rose-500/15 border-2 border-rose-500/30 text-rose-300 text-sm font-medium flex items-center gap-3 shadow-lg shadow-rose-950/20">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-400" />
             <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+            <label className="block text-sm font-bold tracking-wide text-slate-200 mb-2">
               Username
             </label>
-            <div className="relative">
-              <UserIcon className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <div className="relative flex items-center">
+              <UserIcon className="w-5 h-5 absolute left-4 text-slate-400" />
               <input
                 type="text"
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Masukkan username"
-                className="w-full pl-11 pr-4 py-3 bg-black/30 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-sm"
+                className="w-full pl-12 pr-4 py-3.5 sm:py-4 bg-slate-900/90 border-2 border-white/15 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 transition-all text-sm sm:text-base font-sans"
               />
             </div>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <label className="block text-sm font-bold tracking-wide text-slate-200">
                 PIN / Password
               </label>
               <Link
@@ -95,15 +95,15 @@ export default function Login() {
                 Lupa Password?
               </Link>
             </div>
-            <div className="relative">
-              <Lock className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <div className="relative flex items-center">
+              <Lock className="w-5 h-5 absolute left-4 text-slate-400" />
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full pl-11 pr-4 py-3 bg-black/30 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-sm"
+                placeholder="Masukkan PIN / Password"
+                className="w-full pl-12 pr-4 py-3.5 sm:py-4 bg-slate-900/90 border-2 border-white/15 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 transition-all text-sm sm:text-base font-sans"
               />
             </div>
           </div>
@@ -111,9 +111,9 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm cursor-pointer"
+            className="w-full py-4 px-6 bg-blue-600 hover:bg-blue-500 text-white font-extrabold rounded-2xl shadow-xl shadow-blue-600/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base cursor-pointer"
           >
-            {loading ? 'Memproses...' : 'Masuk Dashboard'}
+            {loading ? 'Memproses...' : 'Masuk Dashboard →'}
           </button>
         </form>
       </div>
