@@ -293,14 +293,16 @@ class YoloApp(QWidget):
         self.btn_pass_manual = QPushButton("✅ PASS MANUAL (OK)", self)
         self.btn_pass_manual.setFixedHeight(38)
         self.btn_pass_manual.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_pass_manual.setStyleSheet("background-color: #059669; hover: { background-color: #10b981; } color: white; font-size:14px; font-weight:bold; border-radius: 6px; padding: 0 14px;")
+        self.btn_pass_manual.setStyleSheet("background-color: #059669; color: white; font-size:14px; font-weight:bold; border-radius: 6px; padding: 0 14px;")
         self.btn_pass_manual.clicked.connect(self.trigger_manual_pass)
+        self.btn_pass_manual.setVisible(False)
 
         self.btn_reject_manual = QPushButton("❌ REJECT (NG)", self)
         self.btn_reject_manual.setFixedHeight(38)
         self.btn_reject_manual.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_reject_manual.setStyleSheet("background-color: #dc2626; color: white; font-size:14px; font-weight:bold; border-radius: 6px; padding: 0 14px;")
         self.btn_reject_manual.clicked.connect(self.trigger_manual_reject)
+        self.btn_reject_manual.setVisible(False)
 
         self.btn_demo = QPushButton("🚀 DEMO SISON", self)
         self.btn_demo.setFixedHeight(38)
@@ -317,7 +319,6 @@ class YoloApp(QWidget):
         toolbar_layout = QHBoxLayout()
         toolbar_layout.addWidget(self.btn_pass_manual)
         toolbar_layout.addWidget(self.btn_reject_manual)
-        toolbar_layout.addSpacing(15)
         toolbar_layout.addWidget(self.btn_demo)
         toolbar_layout.addWidget(self.btn_mock)
         toolbar_layout.addStretch()
@@ -422,11 +423,16 @@ class YoloApp(QWidget):
         status_text = "STANDBY"
         
         is_running = current_status in ["OK", "RUNNING"]
-        self.btn_pass_manual.setEnabled(is_running)
-        self.btn_reject_manual.setEnabled(is_running)
+        is_manual_mode = is_running and (inspection_mode == "MANUAL" or self.model is None)
+
+        # 👱 Ponytail: Hanya munculkan tombol PASS MANUAL & REJECT NG ketika transaksi RUNNING dan model AI TIDAK ADA
+        self.btn_pass_manual.setVisible(is_manual_mode)
+        self.btn_reject_manual.setVisible(is_manual_mode)
+        self.btn_pass_manual.setEnabled(is_manual_mode)
+        self.btn_reject_manual.setEnabled(is_manual_mode)
 
         if is_running:
-            if inspection_mode == "MANUAL" or self.model is None:
+            if is_manual_mode:
                 status_color = "#f59e0b" # Amber / Orange
                 status_text = "MODE MANUAL (VISUAL)"
             else:
