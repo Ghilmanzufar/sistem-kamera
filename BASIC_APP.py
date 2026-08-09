@@ -206,6 +206,8 @@ class YoloApp(QWidget):
         self.is_cam_active = (active_cam is not None)
         self.cam_source = cam_source
         self.last_cam_check_time = 0.0
+        self.is_reconnecting = False
+        self.reconnect_attempts = 0
         if self.is_cam_active:
             self._open_camera()
         else:
@@ -227,13 +229,65 @@ class YoloApp(QWidget):
         self.api_thread.start()
         start_periodic_cleanup()
 
+    def _create_capture(self, source):
+        """👱 Ponytail: Buat cv2.VideoCapture dengan DirectShow (Windows) & RTSP low-latency buffer."""
+        is_num = isinstance(source, int) or (isinstance(source, str) and str(source).strip().isdigit())
+        if is_num:
+            src_idx = int(source)
+            if sys.platform.startswith("win"):
+                cap = cv2.VideoCapture(src_idx, cv2.CAP_DSHOW)
+                if not cap.isOpened():
+                    cap = cv2.VideoCapture(src_idx)
+            else:
+                cap = cv2.VideoCapture(src_idx)
+        else:
+            # RTSP / Network Stream: pakai TCP transport & 2s timeout
+            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp|timeout;2000000"
+            cap = cv2.VideoCapture(str(source))
+
+        if cap.isOpened():
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1) # Zero-delay frame buffer
+        return cap
+
     def _open_camera(self):
-        # 👱 Ponytail: Default OpenCV adalah 640x480 (VGA 4:3) yang terlihat kecil/kotak di layar monitor. 
-        # Naikkan ke 1280x720 (16:9 HD) agar gambar penuh, tajam untuk inspeksi, tanpa membebani FPS.
-        self.cap = cv2.VideoCapture(self.cam_source)
-        if self.cap.isOpened():
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        """Membuka capture kamera secara aman."""
+        self.cap = self._create_capture(self.cam_source)
+
+    def _attempt_reconnect_async(self):
+        """👱 Ponytail Watchdog: Thread background untuk reconnect kamera tanpa membekukan UI PyQt."""
+        if self.is_reconnecting or not self.is_cam_active:
+            return
+        self.is_reconnecting = True
+        self.reconnect_attempts += 1
+
+        def worker():
+            try:
+                # Lepas capture lama
+                try:
+                    if self.cap and self.cap.isOpened():
+                        self.cap.release()
+                except Exception:
+                    pass
+
+                time.sleep(1.0) # Jeda agar bus USB / socket network mereset
+                new_cap = self._create_capture(self.cam_source)
+                if new_cap.isOpened():
+                    ret, test_frame = new_cap.read()
+                    if ret and test_frame is not None:
+                        self.cap = new_cap
+                        self.reconnect_attempts = 0
+                        print(f"[CAMERA WATCHDOG] ✅ Kamera ({self.cam_source}) berhasil terhubung kembali!")
+                    else:
+                        new_cap.release()
+            except Exception as e:
+                print(f"[CAMERA WATCHDOG WARN] Percobaan reconnect ke-{self.reconnect_attempts} gagal: {e}")
+            finally:
+                self.is_reconnecting = False
+
+        t = threading.Thread(target=worker, daemon=True)
+        t.start()
 
     def initUI(self):
         self.setWindowTitle("Sistem Kamera Inspeksi")
@@ -498,18 +552,20 @@ class YoloApp(QWidget):
             return
 
         # 4. Baca Frame Kamera
-        ret, frame = self.cap.read() if self.cap.isOpened() else (False, None)
-        if not ret:
-            self.video_label.setText("<span style='color:#ef4444; font-size:24px; font-weight:bold;'>⚠️ KAMERA GAGAL DIAKSES / TIDAK TERDETEKSI<br/>Cek sambungan port USB atau settingan sumber kamera di Admin Dashboard.</span>")
-            # 👱 Ponytail: Rem putaran timer jadi 2000ms (2 detik) agar terminal tidak kebanjiran error log OpenCV, lalu coba open ulang
-            self.timer.setInterval(2000)
-            self.cap.release()
-            self._open_camera()
-            return
+        try:
+            ret, frame = self.cap.read() if (self.cap and self.cap.isOpened()) else (False, None)
+        except Exception:
+            ret, frame = False, None
 
-        # 👱 Ponytail: Kamera sehat, pastikan kecepatan timer normal kembali ke 30ms (33 FPS)
-        if self.timer.interval() != 30:
-            self.timer.setInterval(30)
+        if not ret or frame is None:
+            attempt_text = f" (Mencoba Reconnect ke-{self.reconnect_attempts}...)" if self.reconnect_attempts > 0 else ""
+            self.video_label.setText(
+                f"<span style='color:#ef4444; font-size:24px; font-weight:bold;'>⚠️ KAMERA GAGAL DIAKSES / TERPUTUS{attempt_text}</span><br/>"
+                f"<span style='color:#f87171; font-size:15px; font-weight:normal;'>Mencoba menyambungkan kembali ke sumber [{self.cam_source}]...<br/>"
+                f"Periksa kabel USB kamera atau setting sumber kamera di Admin Dashboard.</span>"
+            )
+            self._attempt_reconnect_async()
+            return
         
         # 4. Proses Logika & Render Deteksi
         frame, pesan_ui = KameraProses.proses_frame(frame, self.model)
