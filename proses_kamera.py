@@ -339,7 +339,7 @@ class KameraProses:
                             state.qty -= 1
                             state.current_side = "F"  # reset ke Front untuk part berikutnya
                             state.part_ok_popup = True
-                            threading.Thread(target=log_inspeksi_db, args=(state.id_trans, state.p_no, "OK", current_avg_conf)).start()
+                            threading.Thread(target=log_inspeksi_db, args=(state.id_trans, state.p_no, "OK", current_avg_conf, "AI")).start()
                             
                             if state.qty <= 0:
                                 state.status = "COMPLETED"
@@ -350,6 +350,32 @@ class KameraProses:
                             else:
                                 pesan_ui = "Part OK! Lanjut part berikutnya."
                                 color_status = (0, 255, 0)
+
+            elif was_mock_triggered:
+                # Part tanpa rule tapi di-trigger mock detect
+                with state.lock:
+                    state.qty -= 1
+                    state.current_side = "F"
+                    state.part_ok_popup = True
+                    cur_pno = state.p_no
+                    cur_id = state.id_trans
+                    rem_qty = state.qty
+                    state.last_inspection_details = {
+                        "label_terdeteksi": "Simulasi Mock Detect",
+                        "avg_confidence": "95%",
+                        "found_labels": "- MOCK COMPONENT : 95%"
+                    }
+                threading.Thread(target=log_inspeksi_db, args=(cur_id, cur_pno, "OK", 0.95, "AI")).start()
+                if rem_qty <= 0:
+                    with state.lock:
+                        state.status = "COMPLETED"
+                        state.completed_time = time.time()
+                    threading.Thread(target=kirim_sison.SisonSender.send_callback, args=(cur_id, 1)).start()
+                    pesan_ui = "INSPEKSI SELESAI!"
+                    color_status = (0, 255, 0)
+                else:
+                    pesan_ui = "Part Mock OK! Lanjut part berikutnya."
+                    color_status = (0, 255, 0)
 
         elif status == "NG":
             pesan_ui = "STATUS: NG! INPUT PIN (1234) UNTUK VALIDASI."
