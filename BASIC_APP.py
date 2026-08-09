@@ -130,17 +130,17 @@ def run_fastapi():
 
 class ShiftLoginDialog(QDialog):
     """
-    Dialog Shift Login — muncul di awal aplikasi dan saat 'Ganti Operator'.
+    Dialog Login Operator — muncul di awal aplikasi dan saat 'Ganti Operator'.
     Semua role (operator/pengawas/admin) diizinkan login ke layar kamera.
-    Tidak bisa di-skip agar layar kamera selalu memiliki identitas operator bertugas.
+    Jika tombol close (X) ditekan pada login awal, aplikasi akan keluar secara aman.
     """
     def __init__(self, parent=None, allow_cancel: bool = False):
         super().__init__(parent)
         self.allow_cancel = allow_cancel
         self.logged_in_fullname = ""
-        self.setWindowTitle("Login Shift Operator")
+        self.setWindowTitle("Login Operator")
         self.setMinimumWidth(420)
-        self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.WindowTitleHint)
+        self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.WindowTitleHint | Qt.WindowType.WindowCloseButtonHint)
         self.setStyleSheet("""
             QDialog { background-color: #0f172a; color: white; font-family: 'Segoe UI'; }
             QLabel { color: #cbd5e1; font-size: 14px; }
@@ -155,12 +155,12 @@ class ShiftLoginDialog(QDialog):
         layout.setSpacing(14)
         layout.setContentsMargins(30, 28, 30, 28)
 
-        title = QLabel("👤 LOGIN SHIFT KAMERA")
+        title = QLabel("👤 LOGIN OPERATOR")
         title.setStyleSheet("font-size: 22px; font-weight: bold; color: #3b82f6;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
-        sub = QLabel("Masukkan Username dan PIN untuk memulai shift kerja")
+        sub = QLabel("Masukkan Username dan PIN untuk masuk ke sistem")
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sub.setStyleSheet("color: #64748b; font-size: 13px;")
         layout.addWidget(sub)
@@ -179,7 +179,7 @@ class ShiftLoginDialog(QDialog):
         self.error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.error_label)
 
-        btn_login = QPushButton("✅  MULAI SHIFT")
+        btn_login = QPushButton("✅  LOGIN")
         btn_login.setFixedHeight(48)
         btn_login.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_login.setStyleSheet(
@@ -223,12 +223,6 @@ class ShiftLoginDialog(QDialog):
             self.error_label.setText(f"Error: {e}")
         finally:
             db.close()
-
-    def keyPressEvent(self, event):
-        # Cegah Escape menutup dialog (wajib login)
-        if event.key() == Qt.Key.Key_Escape and not self.allow_cancel:
-            return
-        super().keyPressEvent(event)
 
 class NGValidationDialog(QDialog):
     def __init__(self, pixmap, parent=None):
@@ -464,7 +458,7 @@ class YoloApp(QWidget):
         self.btn_ganti_operator = QPushButton("🔄", self)
         self.btn_ganti_operator.setFixedSize(36, 36)
         self.btn_ganti_operator.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_ganti_operator.setToolTip("Ganti Operator Shift")
+        self.btn_ganti_operator.setToolTip("Ganti Operator")
         self.btn_ganti_operator.setStyleSheet("background-color: #1e3a5f; color: #38bdf8; font-size:16px; font-weight:bold; border-radius: 6px; border: 1px solid #1d4ed8;")
         self.btn_ganti_operator.clicked.connect(self.change_operator)
 
@@ -570,18 +564,22 @@ class YoloApp(QWidget):
         webbrowser.open("http://localhost:8000/admin/")
 
     def _run_shift_login(self, allow_cancel: bool = False):
-        """Tampilkan ShiftLoginDialog dan set state.operator_name. Hanya dapat di-skip jika allow_cancel=True."""
-        while True:
-            dialog = ShiftLoginDialog(self, allow_cancel=allow_cancel)
-            if dialog.exec() == QDialog.DialogCode.Accepted:
-                with state.lock:
-                    state.operator_name = dialog.logged_in_fullname
-                    state.operator_login_time = time.time()
-                print(f"[SHIFT LOGIN] ✅ Operator login: {dialog.logged_in_fullname}")
-                return
-            elif allow_cancel:
-                return  # Batal ganti — pertahankan operator lama
-            # Jika tidak allow_cancel, loop ulang (dialog awal wajib diisi)
+        """Tampilkan dialog login operator dan set state.operator_name. Jika dialog ditutup pada login awal, aplikasi akan keluar."""
+        dialog = ShiftLoginDialog(self, allow_cancel=allow_cancel)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            with state.lock:
+                state.operator_name = dialog.logged_in_fullname
+                state.operator_login_time = time.time()
+            print(f"[LOGIN] ✅ Operator login: {dialog.logged_in_fullname}")
+            return
+        elif allow_cancel:
+            return  # Batal ganti — pertahankan operator lama
+        else:
+            # Login awal dibatalkan / ditutup via tombol X atau Esc
+            print("[SYSTEM] Login dibatalkan oleh pengguna. Menutup aplikasi...")
+            if hasattr(self, 'cap') and self.cap and self.cap.isOpened():
+                self.cap.release()
+            sys.exit(0)
 
     def _update_operator_badge(self):
         """Refresh teks badge operator di HUD kanan atas dari state."""
