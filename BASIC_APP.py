@@ -290,19 +290,34 @@ class YoloApp(QWidget):
         hud_layout.addWidget(status_container, stretch=1)
         hud_layout.addWidget(right_container, stretch=1)
 
+        self.btn_pass_manual = QPushButton("✅ PASS MANUAL (OK)", self)
+        self.btn_pass_manual.setFixedHeight(38)
+        self.btn_pass_manual.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_pass_manual.setStyleSheet("background-color: #059669; hover: { background-color: #10b981; } color: white; font-size:14px; font-weight:bold; border-radius: 6px; padding: 0 14px;")
+        self.btn_pass_manual.clicked.connect(self.trigger_manual_pass)
+
+        self.btn_reject_manual = QPushButton("❌ REJECT (NG)", self)
+        self.btn_reject_manual.setFixedHeight(38)
+        self.btn_reject_manual.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_reject_manual.setStyleSheet("background-color: #dc2626; color: white; font-size:14px; font-weight:bold; border-radius: 6px; padding: 0 14px;")
+        self.btn_reject_manual.clicked.connect(self.trigger_manual_reject)
+
         self.btn_demo = QPushButton("🚀 DEMO SISON", self)
-        self.btn_demo.setFixedHeight(35)
+        self.btn_demo.setFixedHeight(38)
         self.btn_demo.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_demo.setStyleSheet("background-color: #475569; color: white; font-size:14px; font-weight:bold; border-radius: 5px; padding: 0 10px;")
+        self.btn_demo.setStyleSheet("background-color: #475569; color: white; font-size:14px; font-weight:bold; border-radius: 6px; padding: 0 10px;")
         self.btn_demo.clicked.connect(self.prompt_demo_sison)
 
         self.btn_mock = QPushButton("📷 MOCK DETECT", self)
-        self.btn_mock.setFixedHeight(35)
+        self.btn_mock.setFixedHeight(38)
         self.btn_mock.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_mock.setStyleSheet("background-color: #475569; color: white; font-size:14px; font-weight:bold; border-radius: 5px; padding: 0 10px;")
+        self.btn_mock.setStyleSheet("background-color: #334155; color: #94a3b8; font-size:13px; font-weight:bold; border-radius: 6px; padding: 0 10px;")
         self.btn_mock.clicked.connect(self.trigger_mock_detect)
 
         toolbar_layout = QHBoxLayout()
+        toolbar_layout.addWidget(self.btn_pass_manual)
+        toolbar_layout.addWidget(self.btn_reject_manual)
+        toolbar_layout.addSpacing(15)
         toolbar_layout.addWidget(self.btn_demo)
         toolbar_layout.addWidget(self.btn_mock)
         toolbar_layout.addStretch()
@@ -358,6 +373,24 @@ class YoloApp(QWidget):
         # 👱 Ponytail: Otentikasi dialihkan ke antarmuka Web Admin (tanpa perantara parameter rahasia di URL)
         webbrowser.open("http://localhost:8000/admin/")
 
+    def trigger_manual_pass(self):
+        with state.lock:
+            curr_status = state.status
+        if curr_status not in ["RUNNING", "OK"]:
+            QMessageBox.information(self, "Info", "Sistem dalam posisi STANDBY.\nTidak ada transaksi aktif yang dapat divalidasi secara manual.")
+            return
+        with state.lock:
+            state.manual_pass_trigger = True
+
+    def trigger_manual_reject(self):
+        with state.lock:
+            curr_status = state.status
+        if curr_status not in ["RUNNING", "OK"]:
+            QMessageBox.information(self, "Info", "Sistem dalam posisi STANDBY.\nTidak ada transaksi aktif yang dapat di-reject.")
+            return
+        with state.lock:
+            state.manual_reject_trigger = True
+
     def trigger_mock_detect(self):
         with state.lock:
             curr_status = state.status
@@ -374,6 +407,7 @@ class YoloApp(QWidget):
             target_qty = state.target_qty
             sisa_qty = state.qty
             current_status = state.status
+            inspection_mode = getattr(state, 'inspection_mode', 'AI')
 
         qty_selesai = target_qty - sisa_qty
         
@@ -387,9 +421,17 @@ class YoloApp(QWidget):
         status_color = "#cbd5e1" # Default Gray
         status_text = "STANDBY"
         
-        if current_status in ["OK", "RUNNING"]:
-            status_color = "#22c55e" # Green
-            status_text = "INSPEKSI AKTIF" if current_status == "OK" else "PROSES (RUNNING)"
+        is_running = current_status in ["OK", "RUNNING"]
+        self.btn_pass_manual.setEnabled(is_running)
+        self.btn_reject_manual.setEnabled(is_running)
+
+        if is_running:
+            if inspection_mode == "MANUAL" or self.model is None:
+                status_color = "#f59e0b" # Amber / Orange
+                status_text = "MODE MANUAL (VISUAL)"
+            else:
+                status_color = "#22c55e" # Green
+                status_text = "INSPEKSI AI AKTIF" if current_status == "OK" else "PROSES (AI AUTO)"
             self.hud_frame.setStyleSheet("#hud { background-color: #0f172a; border: none; border-radius: 10px; }")
         elif current_status == "COMPLETED":
             status_color = "#38bdf8" # Sky Blue

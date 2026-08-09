@@ -70,7 +70,7 @@ export default function History() {
   const handleExportCSV = () => {
     if (logs.length === 0) return toast.error('Tidak ada data untuk diexport!');
 
-    const headers = ["ID Log", "Waktu", "ID Transaksi", "Part Number", "Nama Part", "Lot No", "Unique No", "Target Qty", "Actual Qty", "Status Deteksi", "Confidence Score"];
+    const headers = ["ID Log", "Waktu", "ID Transaksi", "Part Number", "Nama Part", "Lot No", "Unique No", "Target Qty", "Actual Qty", "Status Deteksi", "Metode", "Confidence Score"];
     const rows = logs.map(l => [
       l.id,
       l.created_at ? new Date(l.created_at).toLocaleString() : '-',
@@ -82,6 +82,7 @@ export default function History() {
       l.target_qty ?? '-',
       l.qty_actual ?? '-',
       l.detection_status || 'OK',
+      l.method === 'MANUAL' ? 'Manual Visual' : 'AI Auto',
       l.confidence_score !== undefined ? `${(l.confidence_score * 100).toFixed(0)}%` : '100%'
     ]);
 
@@ -114,7 +115,7 @@ export default function History() {
   const rawRole = (localStorage.getItem('user_role') || 'pengawas').toLowerCase();
   const isAdminOrPengawas = rawRole === 'admin' || rawRole === 'pengawas';
 
-  const headers = ["# ID", "Waktu", "ID Trans", "Part No", "Target", "Aktual", "Status Deteksi", "Confidence", "Aksi"];
+  const headers = ["# ID", "Waktu", "ID Trans", "Part No", "Target", "Aktual", "Status Deteksi", "Metode", "Confidence", "Aksi"];
 
   return (
     <div className="space-y-6">
@@ -283,6 +284,17 @@ export default function History() {
                 <td className="p-4 font-medium text-slate-300 text-center">{item.target_qty ?? '-'}</td>
                 <td className="p-4 font-medium text-slate-200 text-center">{item.qty_actual ?? '-'}</td>
                 <td className="p-4 text-center"><StatusBadge status={status} /></td>
+                <td className="p-4 text-center">
+                  {item.method === 'MANUAL' ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Manual Visual
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      AI Auto
+                    </span>
+                  )}
+                </td>
                 <td className="p-4 font-mono font-medium text-slate-300 text-center">{conf}</td>
                 <td className="p-4 text-center flex justify-center">
                   <button
@@ -405,7 +417,22 @@ export default function History() {
                 </span>
               </div>
 
-              <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1 md:col-span-2">
+              <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Metode Inspeksi</span>
+                <div className="pt-1">
+                  {selectedLog.method === 'MANUAL' ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Manual Visual
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      AI Auto YOLOv8
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-1">
                 <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Waktu Inspeksi</span>
                 <span className="text-sm font-medium text-slate-200">
                   {selectedLog.created_at ? new Date(selectedLog.created_at).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'medium' }) : '-'}

@@ -13,12 +13,12 @@ import kirim_ke_sison as kirim_sison
 from database_config import SessionLocal, Transaction, InspectionLog
 from sqlalchemy.sql import func
 
-def log_inspeksi_db(id_trans: str, part_no: str, status_deteksi: str, conf_score: float = 1.0):
+def log_inspeksi_db(id_trans: str, part_no: str, status_deteksi: str, conf_score: float = 1.0, method: str = "AI"):
     """Fungsi helper yang berjalan di background thread untuk mencatat history ke DB"""
     try:
         with SessionLocal() as db:
             # 1. Catat log inspeksi per item
-            log = InspectionLog(id_trans=id_trans, part_no=part_no, detection_status=status_deteksi, confidence_score=conf_score)
+            log = InspectionLog(id_trans=id_trans, part_no=part_no, detection_status=status_deteksi, confidence_score=conf_score, method=method)
             db.add(log)
             
             # 2. Update qty actual di tabel transaksi
@@ -59,6 +59,9 @@ class SystemState:
         self.progress_sisi: int = 0
         self.cooldown_until: float = 0.0
         self.mock_detect_trigger: bool = False
+        self.manual_pass_trigger: bool = False
+        self.manual_reject_trigger: bool = False
+        self.inspection_mode: str = "AI" # "AI" or "MANUAL"
         self.part_ok_popup: bool = False
         self.current_side: str = "F"      # "F" = Front, "R" = Rear
         self.flip_part_popup: bool = False # trigger instruksi "Balik Part" ke operator
@@ -77,6 +80,10 @@ class SystemState:
             self.progress_sisi = 0
             self.current_side = "F"
             self.completed_time = 0.0
+            self.manual_pass_trigger = False
+            self.manual_reject_trigger = False
+            self.mock_detect_trigger = False
+            self.inspection_mode = "AI"
 
 state = SystemState()
 
@@ -143,7 +150,56 @@ class KameraProses:
             detected_confidences = []
             min_conf_failed = False
 
-            if model is not None:
+            # CEK MANUAL PASS / REJECT TRIGGER (Zero-Downtime Industrial Fallback)
+            manual_pass = False
+            manual_reject = False
+            with state.lock:
+                if getattr(state, 'manual_pass_trigger', False):
+                    manual_pass = True
+                    state.manual_pass_trigger = False
+                elif getattr(state, 'manual_reject_trigger', False):
+                    manual_reject = True
+                    state.manual_reject_trigger = False
+
+            if manual_pass:
+                with state.lock:
+                    state.qty -= 1
+                    state.part_ok_popup = True
+                    cur_pno = state.p_no
+                    cur_id = state.id_trans
+                    rem_qty = state.qty
+                    state.last_inspection_details = {
+                        "label_terdeteksi": "Pemeriksaan Visual Manual",
+                        "avg_confidence": "100% (Manual Pass)",
+                        "found_labels": "- INSPEKSI VISUAL OPERATOR : OK"
+                    }
+                
+                threading.Thread(target=log_inspeksi_db, args=(cur_id, cur_pno, "OK", 1.0, "MANUAL")).start()
+                
+                if rem_qty <= 0:
+                    with state.lock:
+                        state.status = "COMPLETED"
+                        state.completed_time = time.time()
+                    threading.Thread(target=kirim_sison.SisonSender.send_callback, args=(cur_id, 1)).start()
+                    pesan_ui = "INSPEKSI MANUAL SELESAI (OK)!"
+                    color_status = (0, 255, 0)
+                else:
+                    pesan_ui = f"Part Manual OK! Sisa: {rem_qty} PCS"
+                    color_status = (0, 255, 0)
+
+            elif manual_reject:
+                with state.lock:
+                    state.status = "NG"
+                    cur_pno = state.p_no
+                    cur_id = state.id_trans
+                threading.Thread(target=log_inspeksi_db, args=(cur_id, cur_pno, "NG", 0.0, "MANUAL")).start()
+                threading.Thread(target=kirim_sison.SisonSender.send_callback, args=(cur_id, 2)).start()
+                pesan_ui = "STATUS: NG (MANUAL REJECT)! INPUT PIN UNTUK VALIDASI."
+                color_status = (0, 0, 255)
+
+            elif model is not None:
+                with state.lock:
+                    state.inspection_mode = "AI"
                 # 👱 Ponytail: Injeksi conf=0.20 di level Torch/engine untuk memangkas kalkulasi bounding box sampah & mendongkrak FPS
                 results = model.track(frame, persist=True, verbose=False, conf=0.20)
                 for result in results:
@@ -172,8 +228,10 @@ class KameraProses:
                             text = f"{label_name.upper()} ({conf*100:.0f}%)"
                             cv2.putText(frame, text, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, box_color, 2)
             else:
-                pesan_ui = "Mode Demo: Tidak ada model custom. Gunakan tombol MOCK DETECT."
-                color_status = (255, 165, 0)  # Orange
+                with state.lock:
+                    state.inspection_mode = "MANUAL"
+                pesan_ui = "MODE MANUAL: Model AI Tidak Ditemukan. Tekan [PASS MANUAL] jika part OK."
+                color_status = (0, 165, 255)  # Orange
 
             # Filter rule sesuai sisi aktif
             aturan_aktif = _get_rules_for_side(aturan_sisi, current_side)
@@ -198,6 +256,17 @@ class KameraProses:
                         detected_confidences.append(0.95)
                         print(f"[MOCK] Injeksi mock_component dengan conf 0.95")
                     state.mock_detect_trigger = False
+
+            # Tampilan HUD khusus jika Mode Manual aktif tanpa deteksi AI
+            if model is None and not was_mock_triggered and not manual_pass and not manual_reject:
+                orange_bgr = (0, 165, 255)
+                green_bgr = (0, 255, 0)
+                white_bgr = (255, 255, 255)
+                cv2_text_parts = [
+                    ("MODE MANUAL: ", orange_bgr),
+                    ("Model AI Belum Ada. ", white_bgr),
+                    ("Tekan [PASS MANUAL (OK)]", green_bgr)
+                ]
 
             # Hitung Statistik Confidence & Total Label (per sisi aktif)
             required_labels = list(set(r.get("nama_komponen", "").lower() for r in aturan_aktif if r.get("nama_komponen")))

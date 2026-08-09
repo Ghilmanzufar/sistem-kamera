@@ -88,6 +88,7 @@ class InspectionLog(Base):
     detection_status = Column(String)  # 'OK' or 'NG'
     image_path = Column(String, nullable=True)
     confidence_score = Column(Float)
+    method = Column(String, default="AI", server_default="AI")  # 'AI' or 'MANUAL'
     created_at = Column(DateTime, server_default=func.now())
 
 class CameraConfig(Base):
