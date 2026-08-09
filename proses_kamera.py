@@ -9,12 +9,13 @@ from ultralytics import YOLO
 # Import untuk kirim laporan jika selesai
 import kirim_ke_sison as kirim_sison
 
-# Import DB untuk history log
+# Import DB untuk history log & Offline Buffer
 from database_config import SessionLocal, Transaction, InspectionLog
+from offline_buffer import save_to_offline_buffer
 from sqlalchemy.sql import func
 
 def log_inspeksi_db(id_trans: str, part_no: str, status_deteksi: str, conf_score: float = 1.0, method: str = "AI"):
-    """Fungsi helper yang berjalan di background thread untuk mencatat history ke DB"""
+    """Fungsi helper yang berjalan di background thread untuk mencatat history ke DB (dengan Offline Buffer Fallback)."""
     try:
         with SessionLocal() as db:
             # 1. Catat log inspeksi per item
@@ -31,17 +32,29 @@ def log_inspeksi_db(id_trans: str, part_no: str, status_deteksi: str, conf_score
             
             db.commit()
     except Exception as e:
-        print(f"Gagal mencatat log inspeksi ke DB: {e}")
+        print(f"[DB WARN] Gagal mencatat log inspeksi ke PostgreSQL ({e}). Mengalihkan ke Offline Buffer...")
+        save_to_offline_buffer("INSPECTION_LOG", {
+            "id_trans": id_trans,
+            "part_no": part_no,
+            "detection_status": status_deteksi,
+            "confidence_score": conf_score,
+            "method": method
+        })
 
 def log_ng_db(id_trans: str, part_no: str, image_path: str):
-    """Fungsi helper untuk mencatat history NG ke DB"""
+    """Fungsi helper untuk mencatat history NG ke DB (dengan Offline Buffer Fallback)."""
     try:
         with SessionLocal() as db:
             log = InspectionLog(id_trans=id_trans, part_no=part_no, detection_status="NG", image_path=image_path, confidence_score=1.0)
             db.add(log)
             db.commit()
     except Exception as e:
-        print(f"Gagal mencatat log NG ke DB: {e}")
+        print(f"[DB WARN] Gagal mencatat log NG ke PostgreSQL ({e}). Mengalihkan ke Offline Buffer...")
+        save_to_offline_buffer("NG_LOG", {
+            "id_trans": id_trans,
+            "part_no": part_no,
+            "image_path": image_path
+        })
 
 # ==============================================================
 # STATE (Pusat Data Antar Thread)

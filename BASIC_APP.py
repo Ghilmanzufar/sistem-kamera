@@ -29,6 +29,7 @@ from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget, QApplication, QMessage
 from PyQt6.QtGui import QImage, QPixmap
 
 from database_config import SessionLocal, CameraConfig, User, verify_password
+from offline_buffer import start_buffer_sync_worker
 from terima_dari_sison import router as camera_router
 from proses_kamera import state, KameraProses
 import proses_kamera
@@ -224,10 +225,11 @@ class YoloApp(QWidget):
         self.timer.timeout.connect(self.update_frame)
         self.timer.start(30) # Refresh 30 FPS
         
-        # Start FastAPI & Auto Cleanup
+        # Start FastAPI, Auto Cleanup, & Offline Buffer Sync Worker
         self.api_thread = threading.Thread(target=run_fastapi, daemon=True)
         self.api_thread.start()
         start_periodic_cleanup()
+        start_buffer_sync_worker()
 
     def _create_capture(self, source):
         """👱 Ponytail: Buat cv2.VideoCapture dengan DirectShow (Windows) & RTSP low-latency buffer."""
