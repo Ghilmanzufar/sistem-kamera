@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, Link } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { AlertTriangle } from 'lucide-react';
+import api from './api/client';
 
 import Sidebar from './components/Sidebar';
 import Login from './pages/Login';
@@ -39,7 +41,29 @@ function isTokenValid(token) {
 // Layout wrapper with Left Sidebar
 function MainLayout() {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [diskWarning, setDiskWarning] = useState(false);
+  const [diskInfo, setDiskInfo] = useState(null);
   const token = localStorage.getItem('admin_token');
+
+  // Polling health & disk storage
+  useEffect(() => {
+    const checkDiskHealth = async () => {
+      try {
+        const res = await api.get('/api/health');
+        const disk = res.data?.disk_storage;
+        if (disk) {
+          setDiskInfo(disk);
+          setDiskWarning(disk.is_low_space_warning || disk.free_percent < 10.0);
+        }
+      } catch {
+        // Silently fail in background polling
+      }
+    };
+
+    checkDiskHealth();
+    const interval = setInterval(checkDiskHealth, 30000); // Polling setiap 30 detik
+    return () => clearInterval(interval);
+  }, []);
   
   if (!token || !isTokenValid(token)) {
     return <Navigate to="/login" replace />;
@@ -55,6 +79,26 @@ function MainLayout() {
         isCollapsed ? 'ml-20' : 'ml-64'
       }`}>
         <main className="w-full glass-container p-6 lg:p-10 shadow-2xl">
+          {/* Global Low Disk Space Warning Banner */}
+          {diskWarning && diskInfo && (
+            <div className="mb-6 p-4 bg-rose-500/20 border-2 border-rose-500/50 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-rose-200 shadow-xl shadow-rose-950/40 animate-pulse">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="w-6 h-6 text-rose-400 shrink-0 animate-bounce" />
+                <div>
+                  <h4 className="font-bold text-sm text-white">⚠️ PERINGATAN KRITIS: Ruang Harddisk Hampir Penuh (&lt; 10% Tersisa)!</h4>
+                  <p className="text-xs text-rose-200/90 font-sans">
+                    Sisa ruang penyimpanan PC: <strong>{diskInfo.free_gb} GB ({diskInfo.free_percent}%)</strong>. Segera bersihkan data atau backup agar sistem inspeksi tidak crash.
+                  </p>
+                </div>
+              </div>
+              <Link
+                to="/system-health"
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl transition-all shrink-0 text-center shadow-md cursor-pointer"
+              >
+                Buka Status Sistem →
+              </Link>
+            </div>
+          )}
           <Outlet />
         </main>
       </div>

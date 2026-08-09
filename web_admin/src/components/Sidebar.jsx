@@ -10,7 +10,8 @@ import {
   Camera, 
   Settings, 
   FileText,
-  Activity, 
+  Activity,
+  HardDrive, 
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -25,6 +26,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
   const navigate = useNavigate();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [themeMode, setThemeMode] = useState(getStoredTheme());
+  const [diskInfo, setDiskInfo] = useState(null);
   const username = localStorage.getItem('username') || 'Admin';
   
   const rawRole = (localStorage.getItem('user_role') || 'pengawas').toLowerCase();
@@ -32,6 +34,17 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
 
   useEffect(() => {
     setThemeMode(getStoredTheme());
+    const fetchDisk = async () => {
+      try {
+        const res = await api.get('/api/health');
+        if (res.data?.disk_storage) {
+          setDiskInfo(res.data.disk_storage);
+        }
+      } catch {}
+    };
+    fetchDisk();
+    const intv = setInterval(fetchDisk, 30000);
+    return () => clearInterval(intv);
   }, []);
 
   const handleThemeToggle = () => {
@@ -130,8 +143,49 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
           </nav>
         </div>
 
-        {/* Bottom User Info, Theme Switcher & Logout */}
+        {/* Bottom Storage Widget, User Info, Theme Switcher & Logout */}
         <div className="pt-4 border-t border-white/10 space-y-3">
+          {/* Storage Mini Bar */}
+          {!isCollapsed && diskInfo && (
+            <NavLink
+              to="/system-health"
+              className={`p-2.5 rounded-xl border block transition-all ${
+                (diskInfo.is_low_space_warning || diskInfo.free_percent < 10)
+                  ? 'bg-rose-500/20 border-rose-500/40 text-rose-300 animate-pulse'
+                  : 'bg-black/20 border-white/5 hover:bg-white/5 text-slate-300'
+              }`}
+              title="Klik untuk melihat status sistem & detail harddisk"
+            >
+              <div className="flex items-center justify-between text-[11px] font-bold mb-1.5">
+                <span className="flex items-center gap-1.5">
+                  <HardDrive className={`w-3.5 h-3.5 ${(diskInfo.is_low_space_warning || diskInfo.free_percent < 10) ? 'text-rose-400' : 'text-blue-400'}`} />
+                  Storage Disk
+                </span>
+                <span className="font-mono text-[10px] text-slate-400">
+                  {diskInfo.free_gb} GB Free
+                </span>
+              </div>
+              <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    (diskInfo.is_low_space_warning || diskInfo.free_percent < 10) ? 'bg-rose-500' : 'bg-blue-500'
+                  }`}
+                  style={{ width: `${Math.min(100, Math.max(0, diskInfo.used_percent || 0))}%` }}
+                ></div>
+              </div>
+            </NavLink>
+          )}
+
+          {isCollapsed && diskInfo && (diskInfo.is_low_space_warning || diskInfo.free_percent < 10) && (
+            <NavLink
+              to="/system-health"
+              className="w-full flex justify-center py-2 bg-rose-500/20 border border-rose-500/40 rounded-xl text-rose-400 animate-bounce"
+              title="Peringatan Disk Kritis (< 10% Free)"
+            >
+              <HardDrive className="w-5 h-5 text-rose-400" />
+            </NavLink>
+          )}
+
           {!isCollapsed && (
             <div className="flex items-center justify-between px-2 py-1.5 rounded-xl bg-black/20 border border-white/5">
               <div className="truncate">
