@@ -112,29 +112,98 @@ def _get_rules_for_side(all_rules: list, side: str) -> list:
     return filtered if filtered else all_rules
 
 # ==============================================================
+# IN-MEMORY LRU MODEL CACHE (Hot-Reload & Zero-Disk Lag)
+# ==============================================================
+from collections import OrderedDict
+
+class ModelCache:
+    """
+    👱 Ponytail In-Memory LRU Model Cache:
+    Menyimpan instance model YOLO di RAM untuk menghindari latency reload disk saat part number berganti.
+    Mendukung hot-reload otomatis jika file .pt di disk diperbarui.
+    """
+    def __init__(self, max_models: int = 5):
+        self.max_models = max_models
+        self._cache = OrderedDict()  # (p_no, mtime) -> YOLO instance
+        self._lock = threading.Lock()
+
+    def get(self, p_no: str):
+        if not p_no:
+            return None
+
+        weights_dir = os.path.join(os.getcwd(), "weights")
+        if not os.path.exists(weights_dir):
+            os.makedirs(weights_dir)
+
+        model_path = os.path.join(weights_dir, f"{p_no}.pt")
+        
+        if not os.path.exists(model_path):
+            # Fallback ke yolov8n.pt jika ada
+            default_path = os.path.join(weights_dir, "yolov8n.pt")
+            if os.path.exists(default_path):
+                model_path = default_path
+            else:
+                return None
+
+        try:
+            mtime = os.path.getmtime(model_path)
+        except OSError:
+            mtime = 0.0
+
+        cache_key = (p_no, mtime)
+
+        with self._lock:
+            if cache_key in self._cache:
+                # Pindahkan ke paling baru (Hit cache)
+                self._cache.move_to_end(cache_key)
+                return self._cache[cache_key]
+
+            # Invalidate versi lama dari part yang sama jika mtime berubah
+            keys_to_remove = [k for k in self._cache if k[0] == p_no]
+            for k in keys_to_remove:
+                del self._cache[k]
+
+            # Muat model baru dari disk ke RAM
+            print(f"[MODEL CACHE] 🧠 Memuat model ke RAM Memory: {model_path} (Part: {p_no})")
+            try:
+                model = YOLO(model_path, verbose=False)
+                self._cache[cache_key] = model
+                self._cache.move_to_end(cache_key)
+
+                # Jika melebihi kapasitas LRU, keluarkan model tertua
+                if len(self._cache) > self.max_models:
+                    evicted_key, _ = self._cache.popitem(last=False)
+                    print(f"[MODEL CACHE] 🗑️ Mengosongkan model lama dari RAM: {evicted_key[0]}")
+                    try:
+                        import gc
+                        gc.collect()
+                        import torch
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                    except Exception:
+                        pass
+
+                return model
+            except Exception as e:
+                print(f"[MODEL CACHE ERROR] Gagal memuat model {model_path}: {e}")
+                return None
+
+    def clear(self):
+        with self._lock:
+            self._cache.clear()
+
+model_cache = ModelCache(max_models=5)
+
+# ==============================================================
 # LOGIKA YOLO & MESIN STATUS
 # ==============================================================
 class KameraProses:
     @staticmethod
     def load_model(p_no: str):
         """
-        Load model YOLO berdasarkan p_no dari folder weights/.
-        Jika tidak ada, fallback ke yolov8n.pt bawaan.
+        Ambil model YOLO berdasarkan p_no dari In-Memory LRU Cache.
         """
-        weights_dir = os.path.join(os.getcwd(), "weights")
-        if not os.path.exists(weights_dir):
-            os.makedirs(weights_dir)
-            
-        model_path = os.path.join(weights_dir, f"{p_no}.pt")
-        
-        if os.path.exists(model_path):
-            print(f"Loading custom model for {p_no}: {model_path}")
-            try:
-                return YOLO(model_path, verbose=False)
-            except Exception as e:
-                print(f"Error loading model {p_no}: {e}")
-        print(f"[WARN] Tidak ada model untuk {p_no}. Gunakan MOCK DETECT untuk demo.")
-        return None
+        return model_cache.get(p_no)
 
     @staticmethod
     def proses_frame(frame, model):
